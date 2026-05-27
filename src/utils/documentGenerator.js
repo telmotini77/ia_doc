@@ -1,23 +1,7 @@
 /**
- * Módulo de generación de contenido estructurado mediante Machine Learning Local y exportación de archivos.
- * Contiene una Red Neuronal Artificial local para clasificación de texto y exportadores a Word, PDF, Excel y PowerPoint.
+ * Módulo de generación de contenido estructurado mediante Machine Learning Local e integración de API.
+ * Contiene una Red Neuronal Artificial local para clasificación de texto y estructuración de contenidos.
  */
-
-import { 
-  Document, 
-  Packer, 
-  Paragraph, 
-  Table as DocxTable, 
-  TableRow as DocxTableRow, 
-  TableCell as DocxTableCell, 
-  HeadingLevel, 
-  AlignmentType, 
-  WidthType 
-} from 'docx';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import pptxgen from 'pptxgenjs';
-import * as XLSX from 'xlsx';
 
 // ==========================================================================
 // DATASET DE ENTRENAMIENTO PARA LA IA (Consola ML)
@@ -721,7 +705,7 @@ El desarrollo propuesto integra tecnologías de vanguardia bajo estándares ópt
         institucion: institution
       },
       asunto: `Respuesta a la Solicitud de Aprobación del Proyecto: "${title}"`,
-      saludo: "Estimado Estudiante / Investigador,",
+saludo: "Estimado Estudiante / Investigador,",
       cuerpo: `En atención a su comunicación de fecha reciente, mediante la cual solicita la aprobación del anteproyecto titulado "${title}", así como el apoyo técnico y logístico para el desarrollo de sus pruebas, cumplo con informar a usted la resolución adoptada.
  
 Esta dirección procedió a realizar un análisis exhaustivo de la factibilidad metodológica, pertinencia temática e impacto institucional de su propuesta. Encontramos que el diseño planteado cumple cabalmente con los lineamientos académicos e incentiva la innovación tecnológica de manera integral.`,
@@ -740,696 +724,8 @@ Esta dirección procedió a realizar un análisis exhaustivo de la factibilidad 
 }
 
 // ==========================================
-// EXPORTADORES A ARCHIVOS FÍSICOS
+// PROCESAMIENTO Y GENERACIÓN CLOUD
 // ==========================================
-
-// 1. Exportador a Word (.docx)
-export async function downloadDOCX(data, type, filename) {
-  let docChildren = [];
-
-  if (type === 'report' || type === 'docx' || type === 'pdf') {
-    docChildren = [
-      // Portada
-      new Paragraph({ text: data.institution.toUpperCase(), heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.department || "DEPARTAMENTO DE TECNOLOGÍA E INNOVACIÓN", heading: HeadingLevel.HEADING_3, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "", spacing: { before: 200, after: 200 } }),
-      new Paragraph({ text: data.title.toUpperCase(), heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "INFORME TÉCNICO DE INVESTIGACIÓN", alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "", spacing: { before: 800 } }),
-      new Paragraph({ text: `INTEGRANTES:\n${data.authors}`, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: `DOCENTE / TUTOR:\n${data.advisor}`, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "", spacing: { before: 800 } }),
-      new Paragraph({ text: `${data.place}, ${data.date}`, alignment: AlignmentType.CENTER }),
-      
-      new Paragraph({ text: "", pageBreakBefore: true }),
-      
-      // Resumen / Abstract
-      new Paragraph({ text: "Resumen", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.abstract.resumen }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      new Paragraph({ text: "Abstract", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.abstract.abstract }),
-      
-      new Paragraph({ text: "", pageBreakBefore: true }),
-      
-      // Introducción
-      new Paragraph({ text: "1. Introducción", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.introduccion }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Objetivos
-      new Paragraph({ text: "2. Objetivos", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: "2.1. Objetivo General", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.objetivos.general }),
-      new Paragraph({ text: "2.2. Objetivos Específicos", heading: HeadingLevel.HEADING_2 }),
-      ...data.objetivos.especificos.map(obj => new Paragraph({ text: `• ${obj}` })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Marco Teórico
-      new Paragraph({ text: "3. Marco Teórico", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.marcoTeorico }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Metodología
-      new Paragraph({ text: "4. Metodología", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: `Tipo de Investigación: ${data.metodologia.tipo}` }),
-      new Paragraph({ text: `Herramientas: ${data.metodologia.herramientas}` }),
-      new Paragraph({ text: `Materiales: ${data.metodologia.materiales}` }),
-      new Paragraph({ text: `Fases: ${data.metodologia.fases}` }),
-      new Paragraph({ text: "Procedimiento Detallado:", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.metodologia.procedimiento }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Desarrollo
-      new Paragraph({ text: "5. Desarrollo", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.desarrollo }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Resultados
-      new Paragraph({ text: "6. Resultados y Discusión", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.resultados.descripcion }),
-      new Paragraph({ text: "", spacing: { after: 100 } }),
-      
-      new DocxTable({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new DocxTableRow({
-            children: [
-              new DocxTableCell({ children: [new Paragraph({ text: "Métrica", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } }),
-              new DocxTableCell({ children: [new Paragraph({ text: "Sin Proyecto", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } }),
-              new DocxTableCell({ children: [new Paragraph({ text: "Con Proyecto", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } }),
-              new DocxTableCell({ children: [new Paragraph({ text: "Mejora", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } })
-            ]
-          }),
-          ...data.resultados.tablaResultados.map(row => new DocxTableRow({
-            children: [
-              new DocxTableCell({ children: [new Paragraph({ text: row.metrica })] }),
-              new DocxTableCell({ children: [new Paragraph({ text: row.sinProyecto })] }),
-              new DocxTableCell({ children: [new Paragraph({ text: row.conProyecto })] }),
-              new DocxTableCell({ children: [new Paragraph({ text: row.mejora })] })
-            ]
-          }))
-        ]
-      }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      new Paragraph({ text: "7. Discusión", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.discusion }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Conclusiones
-      new Paragraph({ text: "8. Conclusiones", heading: HeadingLevel.HEADING_1 }),
-      ...data.conclusiones.map((c, i) => new Paragraph({ text: `${i + 1}. ${c}` })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      new Paragraph({ text: "9. Recomendaciones", heading: HeadingLevel.HEADING_1 }),
-      ...data.recomendaciones.map((r, i) => new Paragraph({ text: `${i + 1}. ${r}` })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      new Paragraph({ text: "10. Referencias", heading: HeadingLevel.HEADING_1 }),
-      ...data.referencias.map(ref => new Paragraph({ text: ref })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      new Paragraph({ text: "Anexos", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.anexos })
-    ];
-  } else if (type === 'petition') {
-    docChildren = [
-      new Paragraph({ text: data.encabezado.logoText, heading: HeadingLevel.HEADING_5, alignment: AlignmentType.RIGHT }),
-      new Paragraph({ text: data.encabezado.oficioNum, heading: HeadingLevel.HEADING_3 }),
-      new Paragraph({ text: data.encabezado.lugarFecha, alignment: AlignmentType.RIGHT }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.destinatario.nombre, heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.destinatario.cargo }),
-      new Paragraph({ text: data.destinatario.institucion }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: `ASUNTO: ${data.asunto}`, heading: HeadingLevel.HEADING_3 }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.saludo }),
-      new Paragraph({ text: data.cuerpo }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: "Por lo expuesto, solicito cordialmente:", heading: HeadingLevel.HEADING_3 }),
-      ...data.peticion.map(p => new Paragraph({ text: `- ${p}` })),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.despedida }),
-      new Paragraph({ text: "", spacing: { before: 400 } }),
-      new Paragraph({ text: "Atentamente,", alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "____________________________________", alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.firma.nombre, heading: HeadingLevel.HEADING_3, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.firma.cargo, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: `C.I. ${data.firma.cedula}`, alignment: AlignmentType.CENTER }),
-      
-      new Paragraph({ text: "", pageBreakBefore: true }),
-      new Paragraph({ text: "Anexos:", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.anexos })
-    ];
-  } else if (type === 'response') {
-    docChildren = [
-      new Paragraph({ text: data.encabezado.logoText, heading: HeadingLevel.HEADING_5, alignment: AlignmentType.RIGHT }),
-      new Paragraph({ text: data.encabezado.oficioNum, heading: HeadingLevel.HEADING_3 }),
-      new Paragraph({ text: data.encabezado.lugarFecha, alignment: AlignmentType.RIGHT }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.destinatario.nombre, heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.destinatario.cargo }),
-      new Paragraph({ text: data.destinatario.institucion }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: `ASUNTO: ${data.asunto}`, heading: HeadingLevel.HEADING_3 }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.saludo }),
-      new Paragraph({ text: data.cuerpo }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.conclusion, heading: HeadingLevel.HEADING_3 }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      new Paragraph({ text: data.despedida }),
-      new Paragraph({ text: "", spacing: { before: 400 } }),
-      new Paragraph({ text: "Atentamente,", alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "____________________________________", alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.firma.nombre, heading: HeadingLevel.HEADING_3, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.firma.cargo, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.firma.institucion, alignment: AlignmentType.CENTER }),
-      
-      new Paragraph({ text: "", pageBreakBefore: true }),
-      new Paragraph({ text: "Anexos:", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.anexos })
-    ];
-  }
-
-  const doc = new Document({
-    sections: [{
-      properties: {},
-      children: docChildren
-    }]
-  });
-
-  const blob = await Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename || `${data.title.replace(/\s+/g, '_')}.docx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-// 2. Exportador a PDF (.pdf)
-export function downloadPDF(data, type, filename) {
-  const doc = new jsPDF({
-    orientation: 'p',
-    unit: 'mm',
-    format: 'a4'
-  });
-
-  if (type === 'report' || type === 'docx' || type === 'pdf') {
-    // Portada
-    doc.setFillColor(170, 59, 255);
-    doc.rect(0, 0, 8, 297, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(80, 80, 80);
-    doc.text(data.institution.toUpperCase(), 25, 40);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.department || "DEPARTAMENTO DE TECNOLOGÍA E INNOVACIÓN", 25, 46);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.setTextColor(8, 6, 13);
-    const titleLines = doc.splitTextToSize(data.title.toUpperCase(), 160);
-    doc.text(titleLines, 25, 90);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(13);
-    doc.setTextColor(120, 120, 120);
-    doc.text("INFORME TÉCNICO DE INVESTIGACIÓN", 25, 125);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(8, 6, 13);
-    doc.text("INTEGRANTES:", 25, 180);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.authors, 25, 186);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("DOCENTE / TUTOR:", 25, 205);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.advisor, 25, 211);
-
-    doc.setFontSize(9);
-    doc.setTextColor(140, 140, 140);
-    doc.text(`${data.place}, ${data.date}`, 25, 260);
-
-    // Resumen / Abstract
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    let y = 30;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(170, 59, 255);
-    doc.text("Resumen", 20, y);
-    y += 7;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.setTextColor(50, 50, 50);
-    let lines = doc.splitTextToSize(data.abstract.resumen, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(170, 59, 255);
-    doc.text("Abstract", 20, y);
-    y += 7;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.abstract.abstract, 170);
-    doc.text(lines, 20, y);
-
-    // Introducción
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "1. Introducción", data.introduccion, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("2. Objetivos", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10.5);
-    doc.setTextColor(50, 50, 50);
-    doc.text("2.1. Objetivo General", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.objetivos.general, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("2.2. Objetivos Específicos", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    data.objetivos.especificos.forEach(obj => {
-      lines = doc.splitTextToSize(`• ${obj}`, 165);
-      doc.text(lines, 24, y);
-      y += (lines.length * 5.2) + 2;
-    });
-
-    // Marco Teórico & Metodología
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "3. Marco Teórico", data.marcoTeorico, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("4. Metodología", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    lines = doc.splitTextToSize(`Tipo de Investigación: ${data.metodologia.tipo}\n\nHerramientas: ${data.metodologia.herramientas}\n\nMateriales: ${data.metodologia.materiales}\n\nFases: ${data.metodologia.fases}`, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Procedimiento Detallado:", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.metodologia.procedimiento, 170);
-    doc.text(lines, 20, y);
-
-    // Desarrollo y Resultados
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "5. Desarrollo del Proyecto", data.desarrollo, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("6. Resultados y Discusión", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.resultados.descripcion, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 6;
-
-    const tableBody = data.resultados.tablaResultados.map(row => [
-      row.metrica,
-      row.sinProyecto,
-      row.conProyecto,
-      row.mejora
-    ]);
-
-    doc.autoTable({
-      startY: y,
-      head: [['Métrica', 'Sin Proyecto', 'Con Proyecto', 'Mejora']],
-      body: tableBody,
-      theme: 'grid',
-      headStyles: { fillColor: [170, 59, 255], textColor: [255, 255, 255] },
-      styles: { fontSize: 9.5, cellPadding: 2.5 },
-      margin: { left: 20, right: 20 }
-    });
-
-    // Discusión y Conclusiones
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "7. Discusión de Resultados", data.discusion, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("8. Conclusiones", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.conclusiones.forEach((c, idx) => {
-      lines = doc.splitTextToSize(`${idx + 1}. ${c}`, 170);
-      doc.text(lines, 20, y);
-      y += (lines.length * 5.2) + 3;
-    });
-    y += 5;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("9. Recomendaciones", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.recomendaciones.forEach((r, idx) => {
-      lines = doc.splitTextToSize(`${idx + 1}. ${r}`, 170);
-      doc.text(lines, 20, y);
-      y += (lines.length * 5.2) + 3;
-    });
-
-    // Referencias
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("10. Referencias Bibliográficas", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.referencias.forEach(ref => {
-      lines = doc.splitTextToSize(ref, 170);
-      doc.text(lines, 20, y);
-      y += (lines.length * 5.2) + 3;
-    });
-    y += 10;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Anexos", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.anexos, 170);
-    doc.text(lines, 20, y);
-
-  } else if (type === 'petition') {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(120, 120, 120);
-    doc.text(data.encabezado.logoText, 20, 20);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(50, 50, 50);
-    doc.text(data.encabezado.oficioNum, 20, 35);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.encabezado.lugarFecha, 130, 35);
-
-    let y = 55;
-    doc.setFont("helvetica", "bold");
-    doc.text(data.destinatario.nombre, 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.text(data.destinatario.cargo, 20, y);
-    y += 5;
-    doc.text(data.destinatario.institucion, 20, y);
-
-    y += 15;
-    doc.setFont("helvetica", "bold");
-    doc.text("ASUNTO:", 20, y);
-    doc.text(data.asunto, 42, y);
-
-    y += 12;
-    doc.setFont("helvetica", "normal");
-    doc.text(data.saludo, 20, y);
-
-    y += 8;
-    let lines = doc.splitTextToSize(data.cuerpo, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Por lo expuesto, solicito cordialmente:", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.peticion.forEach(p => {
-      lines = doc.splitTextToSize(`- ${p}`, 165);
-      doc.text(lines, 25, y);
-      y += (lines.length * 5.2) + 2;
-    });
-
-    y += 8;
-    lines = doc.splitTextToSize(data.despedida, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 20;
-
-    doc.text("Atentamente,", 20, y);
-    y += 18;
-    doc.line(20, y, 90, y);
-    y += 5;
-    doc.setFont("helvetica", "bold");
-    doc.text(data.firma.nombre, 20, y);
-    y += 4;
-    doc.setFont("helvetica", "normal");
-    doc.text(data.firma.cargo, 20, y);
-    y += 4;
-    doc.text(`C.I. ${data.firma.cedula}`, 20, y);
-
-    y += 12;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("Anexos:", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.anexos, 170);
-    doc.text(lines, 20, y);
-
-  } else if (type === 'response') {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(120, 120, 120);
-    doc.text(data.encabezado.logoText, 20, 20);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(50, 50, 50);
-    doc.text(data.encabezado.oficioNum, 20, 35);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.encabezado.lugarFecha, 130, 35);
-
-    let y = 55;
-    doc.setFont("helvetica", "bold");
-    doc.text(data.destinatario.nombre, 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.text(data.destinatario.cargo, 20, y);
-    y += 5;
-    doc.text(data.destinatario.institucion, 20, y);
-
-    y += 15;
-    doc.setFont("helvetica", "bold");
-    doc.text("ASUNTO:", 20, y);
-    doc.text(data.asunto, 42, y);
-
-    y += 12;
-    doc.setFont("helvetica", "normal");
-    doc.text(data.saludo, 20, y);
-
-    y += 8;
-    let lines = doc.splitTextToSize(data.cuerpo, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 8;
-
-    doc.setFont("helvetica", "bold");
-    lines = doc.splitTextToSize(data.conclusion, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 12;
-
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.despedida, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 20;
-
-    doc.text("Atentamente,", 20, y);
-    y += 18;
-    doc.line(20, y, 90, y);
-    y += 5;
-    doc.setFont("helvetica", "bold");
-    doc.text(data.firma.nombre, 20, y);
-    y += 4;
-    doc.setFont("helvetica", "normal");
-    doc.text(data.firma.cargo, 20, y);
-    y += 4;
-    doc.text(data.firma.institucion, 20, y);
-
-    y += 12;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("Anexos:", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.anexos, 170);
-    doc.text(lines, 20, y);
-  }
-
-  doc.save(filename || `${data.title.replace(/\s+/g, '_')}.pdf`);
-}
-
-// 3. Exportador a Excel (.xlsx)
-export function downloadXLSX(data, filename, selectedCharts = ['pie', 'bar', 'line']) {
-  const wb = XLSX.utils.book_new();
-
-  // Portada
-  const portadaData = [
-    ["PROYECTO:", data.hoja1.proyecto],
-    ["INSTITUCIÓN:", data.hoja1.institucion],
-    ["INTEGRANTES:", data.hoja1.integrantes.join(", ")],
-    ["FECHA:", data.hoja1.fecha],
-    ["GENERADOR:", "DocuGenius Neural AI Engine"]
-  ];
-  const ws1 = XLSX.utils.aoa_to_sheet([
-    [data.hoja1.titulo.toUpperCase()],
-    [],
-    ...portadaData
-  ]);
-  ws1["!cols"] = [{ wch: 18 }, { wch: 60 }];
-  XLSX.utils.book_append_sheet(wb, ws1, "Portada");
-
-  // Cronograma
-  const ws2 = XLSX.utils.aoa_to_sheet([
-    [data.hoja2.titulo.toUpperCase()],
-    [],
-    data.hoja2.headers,
-    ...data.hoja2.rows
-  ]);
-  ws2["!cols"] = [{ wch: 45 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 15 }];
-  XLSX.utils.book_append_sheet(wb, ws2, "Cronograma");
-
-  // Presupuesto
-  const budgetRows = data.hoja3.rows.map((row, idx) => {
-    const rowNum = idx + 4;
-    return [
-      row[0],
-      row[1],
-      row[2],
-      { t: 'n', f: `B${rowNum}*C${rowNum}` }
-    ];
-  });
-
-  const totalRowNum = data.hoja3.rows.length + 4;
-  const budgetSheetData = [
-    [data.hoja3.titulo.toUpperCase()],
-    [],
-    data.hoja3.headers,
-    ...budgetRows,
-    [data.hoja3.formulas.label, "", "", { t: 'n', f: `SUM(D4:D${totalRowNum - 1})` }]
-  ];
-
-  const ws3 = XLSX.utils.aoa_to_sheet(budgetSheetData);
-  ws3["!cols"] = [{ wch: 35 }, { wch: 12 }, { wch: 18 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, ws3, "Presupuesto");
-
-  // Resultados
-  const ws4 = XLSX.utils.aoa_to_sheet([
-    [data.hoja4.titulo.toUpperCase()],
-    [],
-    data.hoja4.headers,
-    ...data.hoja4.rows
-  ]);
-  ws4["!cols"] = [{ wch: 35 }, { wch: 20 }, { wch: 45 }];
-  XLSX.utils.book_append_sheet(wb, ws4, "Resultados");
-
-  // Estadísticas
-  const ws5 = XLSX.utils.aoa_to_sheet([
-    [data.hoja5.titulo.toUpperCase()],
-    [],
-    data.hoja5.headers,
-    ...data.hoja5.rows
-  ]);
-  ws5["!cols"] = [{ wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, ws5, "Estadísticas");
-
-  // Gráficos (Datos con Instrucciones Dinámicas)
-  const chartTypesMapping = {
-    'pie': "Diagrama de Pastel (Torta)",
-    'bar': "Gráfico de Barras (Comparativo)",
-    'line': "Gráfico de Líneas (Tendencias)"
-  };
-
-  const tableStartRow = 3 + 2 + (selectedCharts.length * 2) + 2; 
-  const rangeLabels = `A${tableStartRow}:A${tableStartRow + data.hoja6.rows.length}`;
-  const rangeMeta = `B${tableStartRow}:B${tableStartRow + data.hoja6.rows.length}`;
-  const rangeReal = `C${tableStartRow}:C${tableStartRow + data.hoja6.rows.length}`;
-  const rangeAll = `A${tableStartRow - 1}:C${tableStartRow + data.hoja6.rows.length - 1}`;
-
-  const chartInstructions = [
-    ["CONFIGURACIÓN DE GRÁFICOS SOLICITADOS"],
-    ["Los siguientes tipos de gráficos se configuraron para esta tabla:"],
-  ];
-
-  selectedCharts.forEach((type, index) => {
-    const name = chartTypesMapping[type] || type;
-    chartInstructions.push([`${index + 1}. ${name}`]);
-    if (type === 'pie') {
-      chartInstructions.push([`   -> Instrucción: Seleccione la columna de Categorías (${rangeLabels}) y la de Real (${rangeReal}). Vaya a la barra superior en 'Insertar' > 'Gráfico Circular / Pastel'.`]);
-    } else if (type === 'bar') {
-      chartInstructions.push([`   -> Instrucción: Seleccione todo el rango de datos (${rangeAll}). Vaya a la barra superior en 'Insertar' > 'Gráfico de Columnas o Barras agrupadas'.`]);
-    } else if (type === 'line') {
-      chartInstructions.push([`   -> Instrucción: Seleccione todo el rango de datos (${rangeAll}). Vaya a la barra superior en 'Insertar' > 'Gráfico de Líneas con marcadores'.`]);
-    }
-  });
-
-  chartInstructions.push([]);
-  chartInstructions.push(["TABLA DE DATOS PARA LOS GRÁFICOS"]);
-
-  const ws6 = XLSX.utils.aoa_to_sheet([
-    [data.hoja6.titulo.toUpperCase()],
-    [],
-    ...chartInstructions,
-    data.hoja6.headers,
-    ...data.hoja6.rows
-  ]);
-  ws6["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 25 }];
-  XLSX.utils.book_append_sheet(wb, ws6, "Datos Gráficos");
-
-  // Evidencias
-  const ws7 = XLSX.utils.aoa_to_sheet([
-    [data.hoja7.titulo.toUpperCase()],
-    [],
-    data.hoja7.headers,
-    ...data.hoja7.rows
-  ]);
-  ws7["!cols"] = [{ wch: 15 }, { wch: 40 }, { wch: 45 }];
-  XLSX.utils.book_append_sheet(wb, ws7, "Evidencias");
-
-  XLSX.writeFile(wb, filename || `${data.title.replace(/\s+/g, '_')}.xlsx`);
-}
 
 // Analizador estructurado de contenido de diapositiva
 export function parseSlideText(content) {
@@ -1447,10 +743,7 @@ export function parseSlideText(content) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Detectar si la línea es un encabezado (ej: "Concepto: ...")
     const isHeaderLine = trimmed.includes(":") && !trimmed.startsWith("-") && !trimmed.startsWith("•") && !/^\d+\./.test(trimmed);
-    
-    // Detectar si la línea es un encabezado implícito (ej: una línea de texto seguida de viñetas en la siguiente línea)
     const lineIndex = lines.indexOf(line);
     const nextLine = lineIndex < lines.length - 1 ? lines[lineIndex + 1].trim() : "";
     const isGenericHeader = !trimmed.startsWith("-") && !trimmed.startsWith("•") && !/^\d+\./.test(trimmed) && nextLine && (nextLine.startsWith("-") || nextLine.startsWith("•"));
@@ -1500,175 +793,250 @@ export function parseSlideText(content) {
   };
 }
 
-// 4. Exportador a PowerPoint (.pptx)
-export function downloadPPTX(data, filename) {
-  const pptx = new pptxgen();
-
-  pptx.layout = 'LAYOUT_16x9';
-
-  const bgDark = { color: '15111E' };
-  const textTitle = { x: 0.8, y: 1.4, w: 11.7, h: 2.2, fontSize: 34, bold: true, color: 'DDBBFF', fontFace: 'Trebuchet MS' };
-  const textSubtitle = { x: 0.8, y: 3.8, w: 11.7, h: 2.0, fontSize: 16, color: 'A5A0B2', fontFace: 'Arial' };
-  const textFooter = { x: 0.8, y: 6.3, w: 11.7, h: 0.4, fontSize: 9.5, color: '6B6675', fontFace: 'Arial' };
-
-  // Portada
-  let s1 = pptx.addSlide();
-  s1.background = bgDark;
+// Función para interactuar con la API de Gemini Cloud
+export async function generateGeminiContent(prompt, docType, apiKey, customMetadataObj = {}) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
-  s1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.25, h: 7.5, fill: { color: 'AA3BFF' } });
-  s1.addText(data.title.toUpperCase(), textTitle);
-  s1.addText(`INTEGRANTES:\n${data.members}\n\nINSTITUCIÓN:\n${data.institution}\n\nFECHA:\n${data.date}`, textSubtitle);
-  s1.addText("DocuGenius Neural AI Presentation System", textFooter);
-
-  // Slides restantes
-  data.slides.forEach((slideData) => {
-    if (slideData.num === 1) return;
-    
-    let s = pptx.addSlide();
-    s.background = bgDark;
-    
-    // Encabezado
-    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.3, h: 0.95, fill: { color: '20192B' } });
-    s.addText(slideData.title, { x: 0.8, y: 0.2, w: 11.5, h: 0.6, fontSize: 22, bold: true, color: 'DDBBFF', fontFace: 'Trebuchet MS' });
-    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0.9, w: 13.3, h: 0.05, fill: { color: 'AA3BFF' } });
-    
-    const parsed = parseSlideText(slideData.content);
-
-    if (parsed.type === 'table') {
-      const lines = parsed.raw.split("\n").filter(l => l.trim().length > 0 && !l.includes("---"));
-      if (lines.length > 1) {
-        const headers = lines[0].split("|").map(h => h.trim());
-        const rows = lines.slice(1).map(r => r.split("|").map(c => c.trim()));
-        
-        const tableData = [
-          headers.map(h => ({ text: h, options: { bold: true, color: 'FFFFFF', fill: { color: 'AA3BFF' }, align: 'center' } })),
-          ...rows.map(row => row.map(c => ({ text: c, options: { color: 'E5E3EB', fill: { color: '20192B' } } })))
-        ];
-        
-        s.addTable(tableData, { 
-          x: 0.8, 
-          y: 1.6, 
-          w: 11.7, 
-          colWidths: [3.5, 4.1, 4.1], 
-          border: { type: 'solid', color: '4B3E61', size: 1 } 
-        });
-      }
-    } else if (parsed.type === 'blocks') {
-      const blocks = parsed.data;
-
-      if (blocks.length === 2) {
-        // Diseño de 2 Columnas (Left & Right Cards)
-        const leftBlock = blocks[0];
-        const rightBlock = blocks[1];
-
-        // Tarjeta Izquierda
-        s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: '20192B' }, line: { color: '4B3E61', width: 1 } });
-        
-        const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
-        const leftCount = leftBlock.bullets.length;
-        let leftTitleSize = 18;
-        let leftFontSize = 13;
-        let leftLineSpacing = 20;
-
-        if (leftLength > 300 || leftCount > 5) {
-          leftTitleSize = 15;
-          leftFontSize = 10.5;
-          leftLineSpacing = 13;
-        } else if (leftLength > 150 || leftCount > 3) {
-          leftTitleSize = 16.5;
-          leftFontSize = 11.5;
-          leftLineSpacing = 16;
-        }
-
-        const leftTextPara = [];
-        if (leftBlock.title) {
-          leftTextPara.push({ text: leftBlock.title + "\n\n", options: { bold: true, color: 'DDBBFF', fontSize: leftTitleSize, fontFace: 'Trebuchet MS' } });
-        }
-        leftBlock.bullets.forEach((bullet, bIdx) => {
-          const isLast = bIdx === leftBlock.bullets.length - 1;
-          const isBullet = bullet.length > 2;
-          leftTextPara.push({ 
-            text: bullet + (isLast ? "" : "\n"), 
-            options: { color: 'E5E3EB', fontSize: leftFontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: leftLineSpacing } 
-          });
-        });
-        s.addText(leftTextPara, { x: 1.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top' });
-
-        // Tarjeta Derecha
-        s.addShape(pptx.ShapeType.rect, { x: 6.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: '20192B' }, line: { color: '4B3E61', width: 1 } });
-        
-        const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
-        const rightCount = rightBlock.bullets.length;
-        let rightTitleSize = 18;
-        let rightFontSize = 13;
-        let rightLineSpacing = 20;
-
-        if (rightLength > 300 || rightCount > 5) {
-          rightTitleSize = 15;
-          rightFontSize = 10.5;
-          rightLineSpacing = 13;
-        } else if (rightLength > 150 || rightCount > 3) {
-          rightTitleSize = 16.5;
-          rightFontSize = 11.5;
-          rightLineSpacing = 16;
-        }
-
-        const rightTextPara = [];
-        if (rightBlock.title) {
-          rightTextPara.push({ text: rightBlock.title + "\n\n", options: { bold: true, color: 'DDBBFF', fontSize: rightTitleSize, fontFace: 'Trebuchet MS' } });
-        }
-        rightBlock.bullets.forEach((bullet, bIdx) => {
-          const isLast = bIdx === rightBlock.bullets.length - 1;
-          const isBullet = bullet.length > 2;
-          rightTextPara.push({ 
-            text: bullet + (isLast ? "" : "\n"), 
-            options: { color: 'E5E3EB', fontSize: rightFontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: rightLineSpacing } 
-          });
-        });
-        s.addText(rightTextPara, { x: 7.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top' });
-
-      } else {
-        // Diseño de Tarjeta Única Centrada
-        s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 11.7, h: 4.4, fill: { color: '20192B' }, line: { color: '4B3E61', width: 1 } });
-
-        const mainBlock = blocks[0] || { title: "", bullets: [] };
-        const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
-        const mainCount = mainBlock.bullets.length;
-        let mainTitleSize = 18;
-        let mainFontSize = 14;
-        let mainLineSpacing = 22;
-
-        if (mainLength > 450 || mainCount > 6) {
-          mainTitleSize = 16;
-          mainFontSize = 11.5;
-          mainLineSpacing = 16;
-        } else if (mainLength > 250 || mainCount > 4) {
-          mainTitleSize = 17;
-          mainFontSize = 12.5;
-          mainLineSpacing = 18;
-        }
-
-        const textPara = [];
-
-        if (mainBlock.title) {
-          textPara.push({ text: mainBlock.title + "\n\n", options: { bold: true, color: 'DDBBFF', fontSize: mainTitleSize, fontFace: 'Trebuchet MS' } });
-        }
-
-        mainBlock.bullets.forEach((bullet, bIdx) => {
-          const isLast = bIdx === mainBlock.bullets.length - 1;
-          const useBullet = bullet.length > 2 && !bullet.includes("Contacto:");
-          textPara.push({ 
-            text: bullet + (isLast ? "" : "\n"), 
-            options: { color: 'E5E3EB', fontSize: mainFontSize, fontFace: 'Arial', bullet: useBullet, lineSpacing: mainLineSpacing } 
-          });
-        });
-
-        s.addText(textPara, { x: 1.1, y: 1.8, w: 11.1, h: 4.0, valign: 'top' });
-      }
+  // Construir prompts y esquemas según el tipo de documento
+  let schemaDescription = "";
+  if (docType === 'report' || docType === 'docx' || docType === 'pdf') {
+    schemaDescription = `Return a JSON object conforming exactly to this schema:
+{
+  "title": "Clean Title of the Report",
+  "type": "report",
+  "institution": "Name of Institution",
+  "department": "Name of Department",
+  "authors": "Comma-separated authors",
+  "advisor": "Name of Advisor/Teacher",
+  "place": "City, Country",
+  "date": "Date like '26 de Mayo de 2026'",
+  "abstract": {
+    "resumen": "Detailed abstract in Spanish",
+    "abstract": "Detailed abstract in English"
+  },
+  "introduccion": "Detailed introduction text in Spanish",
+  "objetivos": {
+    "general": "General objective",
+    "especificos": ["Specific objective 1", "Specific objective 2", "Specific objective 3"]
+  },
+  "marcoTeorico": "Detailed theoretical framework in Spanish",
+  "metodologia": {
+    "tipo": "Research type description",
+    "herramientas": "List of tools used",
+    "materiales": "List of materials",
+    "procedimiento": "Step-by-step detailed procedure",
+    "fases": "Phases separated by arrows, e.g. Phase 1 -> Phase 2"
+  },
+  "desarrollo": "Very detailed development content",
+  "resultados": {
+    "descripcion": "Detailed results description",
+    "tablaResultados": [
+      { "metrica": "Metric Name", "sinProyecto": "Before project status", "conProyecto": "After project status", "mejora": "Percentage or improvement description" }
+    ]
+  },
+  "discusion": "Detailed discussion of results",
+  "conclusiones": ["Conclusion 1", "Conclusion 2", "Conclusion 3"],
+  "recomendaciones": ["Recommendation 1", "Recommendation 2", "Recommendation 3"],
+  "referencias": ["Reference 1 [IEEE style]", "Reference 2 [IEEE style]"],
+  "anexos": "Appendices details"
+}`;
+  } else if (docType === 'presentation' || docType === 'pptx') {
+    schemaDescription = `Return a JSON object conforming exactly to this schema:
+{
+  "title": "Clean Presentation Title",
+  "type": "presentation",
+  "members": "Comma-separated authors",
+  "institution": "Name of Institution",
+  "date": "Date like '26 de Mayo de 2026'",
+  "slides": [
+    { "num": 1, "title": "Portada", "content": "Title: ...\\nIntegrantes: ...\\nInstitución: ...\\nFecha: ..." },
+    { "num": 2, "title": "Agenda", "content": "1. Introducción\\n2. ...\\n..." },
+    { "num": 3, "title": "Introducción", "content": "..." },
+    { "num": 4, "title": "Problema o Justificación", "content": "..." },
+    { "num": 5, "title": "Objetivos del Proyecto", "content": "..." },
+    { "num": 6, "title": "Marco Teórico - Conceptos", "content": "..." },
+    { "num": 7, "title": "Marco Teórico - Tecnologías", "content": "..." },
+    { "num": 8, "title": "Marco Teórico - Arquitectura", "content": "..." },
+    { "num": 9, "title": "Metodología - Enfoque", "content": "..." },
+    { "num": 10, "title": "Metodología - Herramientas", "content": "..." },
+    { "num": 11, "title": "Metodología - Procedimiento", "content": "..." },
+    { "num": 12, "title": "Metodología - Plan de Pruebas", "content": "..." },
+    { "num": 13, "title": "Resultados Obtenidos", "content": "..." },
+    { "num": 14, "title": "Resultados - Comparativa", "content": "..." },
+    { "num": 15, "title": "Resultados - Evidencias", "content": "..." },
+    { "num": 16, "title": "Conclusiones", "content": "..." },
+    { "num": 17, "title": "Recomendaciones", "content": "..." },
+    { "num": 18, "title": "Preguntas", "content": "..." }
+  ]
+}
+Make sure slide contents fit the slide dimensions (do not overflow). Use bullet points and short sentences separated by newlines.`;
+  } else if (docType === 'spreadsheet' || docType === 'xlsx') {
+    schemaDescription = `Return a JSON object conforming exactly to this schema:
+{
+  "title": "Clean Sheet Title",
+  "type": "spreadsheet",
+  "members": "Comma-separated authors",
+  "date": "Date like '26 de Mayo de 2026'",
+  "hoja1": {
+    "titulo": "PORTADA",
+    "proyecto": "Project Title",
+    "integrantes": ["Author 1", "Author 2"],
+    "fecha": "Date",
+    "institucion": "Name of Institution (optional, default empty)"
+  },
+  "hoja2": {
+    "titulo": "Cronograma",
+    "headers": ["Actividad", "Inicio", "Fin", "Responsable", "Estado"],
+    "rows": [
+      ["Activity name", "YYYY-MM-DD", "YYYY-MM-DD", "Author Name", "Completado/En Progreso/Pendiente"]
+    ]
+  },
+  "hoja3": {
+    "titulo": "Presupuesto",
+    "headers": ["Recurso", "Cantidad", "Costo Unitario ($)", "Total ($)"],
+    "rows": [
+      ["Resource name", 2, 45.0, 90.0]
+    ],
+    "formulas": {
+      "labelCell": "C9",
+      "label": "Total General",
+      "totalCell": "D9",
+      "value": 1500
     }
-    
-    s.addText(`Slide ${slideData.num} / ${data.slides.length}`, textFooter);
+  },
+  "hoja4": {
+    "titulo": "Resultados",
+    "headers": ["Variable", "Valor", "Observaciones"],
+    "rows": [
+      ["Metric", "Value", "Comment"]
+    ]
+  },
+  "hoja5": {
+    "titulo": "Estadísticas",
+    "headers": ["Indicador / KPI", "Valor Objetivo", "Valor Logrado", "Cumplimiento (%)"],
+    "rows": [
+      ["KPI name", "90%", "95%", 105.5]
+    ]
+  },
+  "hoja6": {
+    "titulo": "Gráficos",
+    "headers": ["Categoría", "Variable A (Meta)", "Variable B (Real)"],
+    "rows": [
+      ["Category name", 80, 85]
+    ]
+  },
+  "hoja7": {
+    "titulo": "Registro de Evidencias",
+    "headers": ["Fecha", "Actividad", "Evidencia"],
+    "rows": [
+      ["YYYY-MM-DD", "Activity", "Evidence name"]
+    ]
+  }
+}`;
+  } else if (docType === 'petition') {
+    schemaDescription = `Return a JSON object conforming exactly to this schema:
+{
+  "title": "Clean Title",
+  "type": "petition",
+  "encabezado": {
+    "logoText": "INSTITUTION LOGO TEXT",
+    "oficioNum": "OFICIO N.º ...",
+    "lugarFecha": "City, Date"
+  },
+  "destinatario": {
+    "nombre": "Destinatary Name",
+    "cargo": "Destinatary Role",
+    "institucion": "Destinatary Institution"
+  },
+  "asunto": "Asunto of the petition",
+  "saludo": "Saludo formal",
+  "cuerpo": "Detailed letter body text petitioning something",
+  "peticion": ["Petition item 1", "Petition item 2"],
+  "despedida": "Despedida formal",
+  "firma": {
+    "nombre": "Sender Name",
+    "cargo": "Sender Role/Title",
+    "cedula": "C.I. number"
+  },
+  "anexos": "List of annexes"
+}`;
+  } else if (docType === 'response') {
+    schemaDescription = `Return a JSON object conforming exactly to this schema:
+{
+  "title": "Clean Title",
+  "type": "response",
+  "encabezado": {
+    "logoText": "INSTITUTION LOGO TEXT",
+    "oficioNum": "OFICIO N.º ...",
+    "lugarFecha": "City, Date"
+  },
+  "destinatario": {
+    "nombre": "Destinatary Name",
+    "cargo": "Destinatary Role",
+    "institucion": "Destinatary Institution"
+  },
+  "asunto": "Asunto of the response",
+  "saludo": "Saludo formal",
+  "cuerpo": "Detailed letter body text answering/responding to a previous petition",
+  "conclusion": "Resolución / Conclusión of the response",
+  "despedida": "Despedida formal",
+  "firma": {
+    "nombre": "Sender Name",
+    "cargo": "Sender Role/Title",
+    "institucion": "Sender Institution"
+  },
+  "anexos": "List of annexes"
+}`;
+  }
+
+  // Pre-llenar metadatos si el usuario los ingresa
+  let metadataOverrides = "";
+  if (customMetadataObj && (customMetadataObj.title || customMetadataObj.institution || customMetadataObj.authors || customMetadataObj.advisor)) {
+    metadataOverrides = `If applicable, override/use the metadata with these values:
+- Title/Proyecto: ${customMetadataObj.title || ""}
+- Institution: ${customMetadataObj.institution || ""}
+- Authors/Integrantes: ${customMetadataObj.authors || ""}
+- Advisor/Docente: ${customMetadataObj.advisor || ""}
+`;
+  }
+
+  const promptText = `You are a professional document content generator. Based on the user requirement prompt: "${prompt}", generate the complete, realistic and detailed content in Spanish for a "${docType}" document. Do not use placeholders.
+${metadataOverrides}
+${schemaDescription}
+Output must be a raw JSON string ONLY. Do not wrap in markdown \`\`\`json blocks. Ensure numbers are numbers and arrays are arrays. All text must be in Spanish.`;
+
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          { text: promptText }
+        ]
+      }
+    ],
+    generationConfig: {
+      responseMimeType: "application/json"
+    }
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(requestBody)
   });
 
-  pptx.writeFile({ fileName: filename || `${data.title.replace(/\s+/g, '_')}.pptx` });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+  }
+
+  const result = await response.json();
+  const textResponse = result.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!textResponse) {
+    throw new Error("No text response from Gemini API");
+  }
+
+  return JSON.parse(textResponse.trim());
 }
+

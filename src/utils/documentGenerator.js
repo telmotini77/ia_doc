@@ -487,54 +487,44 @@ export function generateLocalContent(prompt, type, predictionResult = null) {
   // Construcción de estructuras basadas en el tipo
   if (type === 'report' || type === 'docx' || type === 'pdf') {
     return {
-      title,
+      title: title.toUpperCase(),
       type: "report",
       institution,
-      department: "Departamento de Innovación y Tecnología",
       authors: authors.join(", "),
+      course: "Tercero BGU",
       advisor,
-      place,
-      date,
-      abstract: {
-        resumen: `El presente trabajo detalla ${context.desc} En primer lugar, se analiza el contexto y la problemática actual para proponer objetivos medibles. Posteriormente, se describe el marco conceptual y los componentes clave del sistema. La metodología empleada detalla el diseño de pruebas paso a paso. Los resultados muestran la viabilidad técnica y económica de la propuesta, culminando en conclusiones operativas que guían las futuras mejoras del sistema desarrollado.`,
-        abstract: `This paper presents ${context.desc.replace(/el /g, 'the ').replace(/diseño/g, 'design').replace(/de una/g, 'of a').replace(/sistema/g, 'system')}. First, the background and current issues are analyzed to propose measurable goals. Then, the conceptual framework and main components are described. The methodology provides step-by-step test designs. Results demonstrate the technical and economic feasibility, concluding with operational remarks for future enhancements of the system.`
+      date: "2025 - 2026",
+      primeraParte: {
+        introduccion: `El presente estudio de caso presenta de forma resumida la propuesta enfocada en ${context.desc} Este trabajo busca abordar las problemáticas existentes mediante soluciones innovadoras, estableciendo un diagnóstico inicial claro.`,
+        antecedente: `${context.intro} El desarrollo tecnológico actual exige adaptación rápida, y las instituciones enfrentan constantes desafíos de integración que deben ser mitigados para mantener la eficiencia.`,
+        definicionProblema: `Se evidencia una carencia sistemática en la gestión y control de procesos clave. El problema principal radica en las prácticas manuales u obsoletas que provocan demoras sustanciales, afectando el rendimiento integral y la toma de decisiones.`,
+        justificacion: `Es pertinente implementar este estudio de caso porque ${context.justificacion} Además, aportará un marco referencial para futuros análisis en escenarios de condiciones similares.`,
+        objetivos: {
+          general: `Desarrollar y evaluar ${context.desc}`,
+          especificos: [
+            "Analizar la problemática actual empleando herramientas metodológicas.",
+            "Diseñar una estructura lógica que solvente las necesidades detectadas.",
+            "Validar la eficacia de la propuesta a través de pruebas de control."
+          ]
+        }
       },
-      introduccion: `${context.intro} Con esto, se busca mejorar la automatización, centralizar el monitoreo y recolectar datos de valor para el usuario. El alcance abarca desde el modelado conceptual hasta el despliegue del prototipo funcional, permitiendo evaluar de primera mano las limitaciones del proyecto. ${context.justificacion}`,
-      objetivos: {
-        general: `Desarrollar y evaluar ${context.desc}`,
-        especificos: [
-          "Analizar y seleccionar las herramientas técnicas idóneas para el cumplimiento de los requerimientos.",
-          "Diseñar el esquema lógico y físico del sistema asegurando la modularidad y el bajo costo.",
-          "Desplegar un prototipo funcional para verificar las tasas de error y la estabilidad general.",
-          "Elaborar un informe técnico detallado de resultados y proponer un plan de escalabilidad."
-        ]
+      segundaParte: {
+        marcoConceptual: `El marco conceptual define los elementos troncales que guiarán la investigación. ${context.teoria} Conceptos como "eficiencia", "sostenibilidad" y "escalabilidad" son pilares de este trabajo. Se comprende la infraestructura tecnológica como el soporte vital de operaciones concurrentes.`,
+        marcoMetodologico: `La estrategia de investigación adoptada es de naturaleza aplicada y descriptiva. Se utilizarán las siguientes herramientas: ${context.herramientas}. El procedimiento consistió en: ${context.procedimiento}. Esta metodología asegura resultados cuantificables y reproducibles.`,
+        resultadosObtenidos: `Los resultados demuestran la viabilidad de la intervención. Durante la fase de recolección de datos, se observó que la implementación de los nuevos protocolos tuvo un efecto inmediato sobre el rendimiento. Los procesos se agilizaron y las métricas se estabilizaron.`,
+        analisisResultados: `Examinando los resultados, resulta evidente que la nueva estrategia superó al método anterior. La optimización alcanzada respalda plenamente la viabilidad técnica y operativa de los cambios propuestos en el contexto del problema definido.`
       },
-      marcoTeorico: `El marco conceptual de este proyecto abarca diversos temas tecnológicos. ${context.teoria} Adicionalmente, se consideran regulaciones locales sobre manejo de datos y eficiencia de recursos para asegurar la factibilidad legal y ambiental del proyecto propuesto.`,
-      metodologia: {
-        tipo: "Investigación experimental y desarrollo tecnológico aplicado.",
-        herramientas: context.herramientas,
-        materiales: "Hardware de prueba, servicios de nube, simuladores locales y documentación API.",
-        procedimiento: context.procedimiento,
-        fases: "Planificación -> Diseño -> Codificación/Construcción -> Pruebas de Estrés -> Evaluación Final"
+      terceraParte: {
+        conclusiones: context.conclusiones,
+        recomendaciones: context.recomendaciones
       },
-      desarrollo: `Durante la fase de implementación, se integraron los componentes siguiendo una arquitectura limpia. Se diseñaron diagramas de flujo del proceso y se mapearon las conexiones de bases de datos. A continuación se detallan las fases operativas más complejas y se exponen bloques de código clave configurados para el manejo de excepciones y control de flujos concurrentes.`,
-      resultados: {
-        descripcion: "Las pruebas preliminares arrojaron datos favorables sobre estabilidad y tiempo de respuesta.",
-        tablaResultados: [
-          { metrica: "Tiempo de Respuesta", sinProyecto: "45 seg (manual)", conProyecto: "1.2 seg (auto)", mejora: "97.3%" },
-          { metrica: "Pérdida de Datos/Recurso", sinProyecto: "35% promedio", conProyecto: "3% controlado", mejora: "91.4%" },
-          { metrica: "Horas Hombre Mensuales", sinProyecto: "80 horas", conProyecto: "6 horas", mejora: "92.5%" }
-        ]
-      },
-      discusion: `Al interpretar los resultados, las ventajas son evidentes: mayor precisión y disminución de costos operativos. Sin embargo, existen limitaciones tales como la dependencia de conectividad de red local estable. Durante las pruebas se encontraron fallos en la latencia que fueron mitigados mediante políticas de reintento en el firmware.`,
-      conclusiones: context.conclusiones,
-      recomendaciones: context.recomendaciones,
-      referencias: [
-        `[1] A. Gómez y R. Pérez, "Monitoreo Inteligente y Aplicaciones IoT", Revista Iberoamericana de Tecnología, vol. 12, no. 3, pp. 45-56, 2025.`,
-        `[2] M. Smith, "Sistemas Automatizados y Optimización de Recursos en la Industria 4.0", Academic Press, Ed. 3, pp. 110-125, 2024.`,
-        `[3] ISO/IEC Standard 27001, "Information technology - Security techniques - Information security management systems - Requirements", 2022.`
-      ],
-      anexos: "Anexo A: Código fuente y repositorio del proyecto.\nAnexo B: Diagrama de Conexiones e Interfaces Físicas."
+      cuartaParte: {
+        referencias: [
+          "Gómez, A., & Pérez, R. (2025). Monitoreo Inteligente. Revista Iberoamericana de Tecnología, 12(3), 45-56.",
+          "Smith, M. (2024). Sistemas Automatizados en la Industria 4.0 (3.ª ed.). Academic Press."
+        ],
+        anexos: "Anexo A: Matriz de levantamiento de requerimientos.\nAnexo B: Instrumentos de validación técnica."
+      }
     };
   }
 
@@ -794,51 +784,45 @@ export function parseSlideText(content) {
 }
 
 // Función para interactuar con la API de Gemini Cloud
-export async function generateGeminiContent(prompt, docType, apiKey, customMetadataObj = {}) {
+export async function generateGeminiContent(prompt, docType, apiKey, customMetadataObj = {}, attachedFiles = []) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   // Construir prompts y esquemas según el tipo de documento
   let schemaDescription = "";
   if (docType === 'report' || docType === 'docx' || docType === 'pdf') {
-    schemaDescription = `Return a JSON object conforming exactly to this schema:
+    schemaDescription = `Return a JSON object conforming exactly to this schema for an 'Estudio de Caso':
 {
-  "title": "Clean Title of the Report",
+  "title": "TEMA EN MAYÚSCULAS",
   "type": "report",
   "institution": "Name of Institution",
-  "department": "Name of Department",
-  "authors": "Comma-separated authors",
+  "authors": "Nombre y Apellido",
+  "course": "Curso y Paralelo",
   "advisor": "Name of Advisor/Teacher",
-  "place": "City, Country",
-  "date": "Date like '26 de Mayo de 2026'",
-  "abstract": {
-    "resumen": "Detailed abstract in Spanish",
-    "abstract": "Detailed abstract in English"
+  "date": "Periodo, e.g. 2025 - 2026",
+  "primeraParte": {
+    "introduccion": "Resumen del estudio de caso (200 - 250 palabras)",
+    "antecedente": "Breve explicación del contexto donde surge el problema (200 - 250 palabras)",
+    "definicionProblema": "Detalle del suceso o fenómeno problemático (200 - 250 palabras)",
+    "justificacion": "Razones por las cuales el estudio es pertinente (80 - 100 palabras)",
+    "objetivos": {
+      "general": "Objetivo general iniciando con verbo en infinitivo",
+      "especificos": ["Objetivo específico 1", "Objetivo específico 2"]
+    }
   },
-  "introduccion": "Detailed introduction text in Spanish",
-  "objetivos": {
-    "general": "General objective",
-    "especificos": ["Specific objective 1", "Specific objective 2", "Specific objective 3"]
+  "segundaParte": {
+    "marcoConceptual": "Definición clara de elementos y términos (800 - 900 palabras)",
+    "marcoMetodologico": "Explicación de la estrategia de investigación (450 - 500 palabras)",
+    "resultadosObtenidos": "Descripción de resultados basados en la estrategia (350 - 400 palabras)",
+    "analisisResultados": "Examinación crítica de los resultados (200 - 250 palabras)"
   },
-  "marcoTeorico": "Detailed theoretical framework in Spanish",
-  "metodologia": {
-    "tipo": "Research type description",
-    "herramientas": "List of tools used",
-    "materiales": "List of materials",
-    "procedimiento": "Step-by-step detailed procedure",
-    "fases": "Phases separated by arrows, e.g. Phase 1 -> Phase 2"
+  "terceraParte": {
+    "conclusiones": ["Conclusión 1 (síntesis de hallazgos)", "Conclusión 2"],
+    "recomendaciones": ["Recomendación 1 (estrategias elaboradas)", "Recomendación 2"]
   },
-  "desarrollo": "Very detailed development content",
-  "resultados": {
-    "descripcion": "Detailed results description",
-    "tablaResultados": [
-      { "metrica": "Metric Name", "sinProyecto": "Before project status", "conProyecto": "After project status", "mejora": "Percentage or improvement description" }
-    ]
-  },
-  "discusion": "Detailed discussion of results",
-  "conclusiones": ["Conclusion 1", "Conclusion 2", "Conclusion 3"],
-  "recomendaciones": ["Recommendation 1", "Recommendation 2", "Recommendation 3"],
-  "referencias": ["Reference 1 [IEEE style]", "Reference 2 [IEEE style]"],
-  "anexos": "Appendices details"
+  "cuartaParte": {
+    "referencias": ["Referencia 1 en formato APA 7", "Referencia 2 en formato APA 7"],
+    "anexos": "Detalle de encuestas, gráficos u otros adjuntos relevantes"
+  }
 }`;
   } else if (docType === 'presentation' || docType === 'pptx') {
     schemaDescription = `Return a JSON object conforming exactly to this schema:
@@ -1000,17 +984,33 @@ Make sure slide contents fit the slide dimensions (do not overflow). Use bullet 
 `;
   }
 
-  const promptText = `You are a professional document content generator. Based on the user requirement prompt: "${prompt}", generate the complete, realistic and detailed content in Spanish for a "${docType}" document. Do not use placeholders.
+  let fileInstruction = "";
+  if (attachedFiles && attachedFiles.length > 0) {
+    fileInstruction = "Please consider the attached files/images as additional context for generating the content. ";
+  }
+
+  const promptText = `You are a professional document content generator. Based on the user requirement prompt: "${prompt}", ${fileInstruction}generate the complete, realistic and detailed content in Spanish for a "${docType}" document. Do not use placeholders.
 ${metadataOverrides}
 ${schemaDescription}
 Output must be a raw JSON string ONLY. Do not wrap in markdown \`\`\`json blocks. Ensure numbers are numbers and arrays are arrays. All text must be in Spanish.`;
 
+  const parts = [{ text: promptText }];
+  
+  if (attachedFiles && attachedFiles.length > 0) {
+    attachedFiles.forEach(file => {
+      parts.push({
+        inlineData: {
+          mimeType: file.type,
+          data: file.data
+        }
+      });
+    });
+  }
+
   const requestBody = {
     contents: [
       {
-        parts: [
-          { text: promptText }
-        ]
+        parts: parts
       }
     ],
     generationConfig: {

@@ -12,7 +12,10 @@ import {
   TableCell as DocxTableCell, 
   HeadingLevel, 
   AlignmentType, 
-  WidthType 
+  WidthType,
+  Header,
+  TextRun,
+  PageNumber
 } from 'docx';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
@@ -67,114 +70,157 @@ function addPDFSection(doc, sectionTitle, contentText, startY) {
 // EXPORTADORES A ARCHIVOS FÍSICOS
 // ==========================================================================
 
+const docxFontMapping = {
+  times12: { name: "Times New Roman", size: 24, heading1Size: 32, heading2Size: 28, heading3Size: 24 },
+  georgia11: { name: "Georgia", size: 22, heading1Size: 30, heading2Size: 26, heading3Size: 22 },
+  computer10: { name: "Courier New", size: 20, heading1Size: 28, heading2Size: 24, heading3Size: 20 },
+  calibri11: { name: "Calibri", size: 22, heading1Size: 30, heading2Size: 26, heading3Size: 22 },
+  arial11: { name: "Arial", size: 22, heading1Size: 30, heading2Size: 26, heading3Size: 22 },
+  lucida10: { name: "Lucida Sans Unicode", size: 20, heading1Size: 28, heading2Size: 24, heading3Size: 20 }
+};
+
 // 1. Exportador a Word (.docx)
-export async function downloadDOCX(data, type, filename) {
+export async function downloadDOCX(data, type, filename, reportFormat) {
   let docChildren = [];
+  
+  const format = reportFormat || {
+    paperSize: 'carta',
+    font: 'times12',
+    margin: '2.54',
+    spacing: '2.0',
+    alignment: 'left',
+    indent: '1.27'
+  };
+
+  const fontInfo = docxFontMapping[format.font] || docxFontMapping.times12;
+  const isAPA = format.margin === '2.54';
+  const marginSize = isAPA ? 1440 : 1134; // 1 inch (1440 dxa) vs 2 cm (1134 dxa)
+  const lineSpacing = format.spacing === '2.0' ? 480 : (format.spacing === '1.5' ? 360 : 276); // double (480), 1.5 (360), single/1.15 (276)
+  const docAlignment = format.alignment === 'left' ? AlignmentType.LEFT : AlignmentType.JUSTIFY;
+  const firstLineIndent = format.indent === '1.27' ? 720 : 0; // 1.27 cm = 720 dxa
+
+  // Helpers for formatting
+  const createHeading1 = (text) => new Paragraph({
+    children: [new TextRun({ text, font: fontInfo.name, size: fontInfo.heading1Size, bold: true })],
+    heading: HeadingLevel.HEADING_1,
+    spacing: { before: 240, after: 120 },
+    indent: { firstLine: 0 }
+  });
+
+  const createHeading2 = (text) => new Paragraph({
+    children: [new TextRun({ text, font: fontInfo.name, size: fontInfo.heading2Size, bold: true })],
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 240, after: 120 },
+    indent: { firstLine: 0 }
+  });
+
+  const createHeading3 = (text) => new Paragraph({
+    children: [new TextRun({ text, font: fontInfo.name, size: fontInfo.heading3Size, bold: true })],
+    heading: HeadingLevel.HEADING_3,
+    spacing: { before: 240, after: 120 },
+    indent: { firstLine: 0 }
+  });
+
+  const createPara = (text) => new Paragraph({
+    children: [new TextRun({ text, font: fontInfo.name, size: fontInfo.size })],
+    alignment: docAlignment,
+    spacing: { line: lineSpacing, lineRule: "auto", before: 0, after: 0 },
+    indent: { firstLine: firstLineIndent }
+  });
+
+  const createListItem = (text) => new Paragraph({
+    children: [new TextRun({ text, font: fontInfo.name, size: fontInfo.size })],
+    spacing: { line: lineSpacing, lineRule: "auto", before: 0, after: 120 },
+    indent: { firstLine: 0 }
+  });
+
+  const createReference = (text) => new Paragraph({
+    children: [new TextRun({ text, font: fontInfo.name, size: fontInfo.size })],
+    alignment: docAlignment,
+    spacing: { line: lineSpacing, lineRule: "auto", before: 0, after: 120 },
+    indent: { hanging: 720 }
+  });
 
   if (type === 'report' || type === 'docx' || type === 'pdf') {
     docChildren = [
-      // Portada
-      new Paragraph({ text: data.institution.toUpperCase(), heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: data.department || "DEPARTAMENTO DE TECNOLOGÍA E INNOVACIÓN", heading: HeadingLevel.HEADING_3, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "", spacing: { before: 200, after: 200 } }),
-      new Paragraph({ text: data.title.toUpperCase(), heading: HeadingLevel.TITLE, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "INFORME TÉCNICO DE INVESTIGACIÓN", alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "", spacing: { before: 800 } }),
-      new Paragraph({ text: `INTEGRANTES:\n${data.authors}`, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: `DOCENTE / TUTOR:\n${data.advisor}`, alignment: AlignmentType.CENTER }),
-      new Paragraph({ text: "", spacing: { before: 800 } }),
-      new Paragraph({ text: `${data.place}, ${data.date}`, alignment: AlignmentType.CENTER }),
-      
-      new Paragraph({ text: "", pageBreakBefore: true }),
-      
-      // Resumen / Abstract
-      new Paragraph({ text: "Resumen", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.abstract.resumen }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      new Paragraph({ text: "Abstract", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.abstract.abstract }),
-      
-      new Paragraph({ text: "", pageBreakBefore: true }),
-      
-      // Introducción
-      new Paragraph({ text: "1. Introducción", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.introduccion }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Objetivos
-      new Paragraph({ text: "2. Objetivos", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: "2.1. Objetivo General", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.objetivos.general }),
-      new Paragraph({ text: "2.2. Objetivos Específicos", heading: HeadingLevel.HEADING_2 }),
-      ...data.objetivos.especificos.map(obj => new Paragraph({ text: `• ${obj}` })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Marco Teórico
-      new Paragraph({ text: "3. Marco Teórico", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.marcoTeorico }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Metodología
-      new Paragraph({ text: "4. Metodología", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: `Tipo de Investigación: ${data.metodologia.tipo}` }),
-      new Paragraph({ text: `Herramientas: ${data.metodologia.herramientas}` }),
-      new Paragraph({ text: `Materiales: ${data.metodologia.materiales}` }),
-      new Paragraph({ text: `Fases: ${data.metodologia.fases}` }),
-      new Paragraph({ text: "Procedimiento Detallado:", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.metodologia.procedimiento }),
-      new Paragraph({ text: "", spacing: { before: 200 } }),
-      
-      // Desarrollo
-      new Paragraph({ text: "5. Desarrollo", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.desarrollo }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      
-      // Resultados
-      new Paragraph({ text: "6. Resultados y Discusión", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.resultados.descripcion }),
-      new Paragraph({ text: "", spacing: { after: 100 } }),
-      
-      new DocxTable({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new DocxTableRow({
-            children: [
-              new DocxTableCell({ children: [new Paragraph({ text: "Métrica", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } }),
-              new DocxTableCell({ children: [new Paragraph({ text: "Sin Proyecto", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } }),
-              new DocxTableCell({ children: [new Paragraph({ text: "Con Proyecto", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } }),
-              new DocxTableCell({ children: [new Paragraph({ text: "Mejora", heading: HeadingLevel.HEADING_4 })], shading: { fill: "F3F4F6" } })
-            ]
-          }),
-          ...data.resultados.tablaResultados.map(row => new DocxTableRow({
-            children: [
-              new DocxTableCell({ children: [new Paragraph({ text: row.metrica })] }),
-              new DocxTableCell({ children: [new Paragraph({ text: row.sinProyecto })] }),
-              new DocxTableCell({ children: [new Paragraph({ text: row.conProyecto })] }),
-              new DocxTableCell({ children: [new Paragraph({ text: row.mejora })] })
-            ]
-          }))
-        ]
+      // Portada (Estudio de Caso)
+      new Paragraph({ 
+        children: [new TextRun({ text: "ESTUDIO DE CASO", bold: true, size: 36, font: fontInfo.name })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 240, after: 240 },
+        indent: { firstLine: 0 }
       }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
-      new Paragraph({ text: "7. Discusión", heading: HeadingLevel.HEADING_2 }),
-      new Paragraph({ text: data.discusion }),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
+      new Paragraph({ text: "", spacing: { before: 800 } }),
+      new Paragraph({ 
+        children: [new TextRun({ text: data.title.toUpperCase(), bold: true, size: 28, font: fontInfo.name })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 800, after: 240 },
+        indent: { firstLine: 0 }
+      }),
+      new Paragraph({ text: "", spacing: { before: 800 } }),
+      new Paragraph({ children: [new TextRun({ text: `Estudiante: ${data.authors}`, font: fontInfo.name, size: fontInfo.size })], alignment: AlignmentType.CENTER, indent: { firstLine: 0 } }),
+      new Paragraph({ children: [new TextRun({ text: `Curso: ${data.course}`, font: fontInfo.name, size: fontInfo.size })], alignment: AlignmentType.CENTER, indent: { firstLine: 0 } }),
+      new Paragraph({ children: [new TextRun({ text: `TUTOR: ${data.advisor}`, font: fontInfo.name, size: fontInfo.size })], alignment: AlignmentType.CENTER, indent: { firstLine: 0 } }),
+      new Paragraph({ text: "", spacing: { before: 800 } }),
+      new Paragraph({ children: [new TextRun({ text: data.date, font: fontInfo.name, size: fontInfo.size })], alignment: AlignmentType.CENTER, indent: { firstLine: 0 } }),
       
-      // Conclusiones
-      new Paragraph({ text: "8. Conclusiones", heading: HeadingLevel.HEADING_1 }),
-      ...data.conclusiones.map((c, i) => new Paragraph({ text: `${i + 1}. ${c}` })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
+      new Paragraph({ text: "", pageBreakBefore: true }),
       
-      new Paragraph({ text: "9. Recomendaciones", heading: HeadingLevel.HEADING_1 }),
-      ...data.recomendaciones.map((r, i) => new Paragraph({ text: `${i + 1}. ${r}` })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
+      // Primera Parte
+      createHeading1("Primera Parte: Antecedentes"),
+      createHeading2("Introducción"),
+      createPara(data.primeraParte.introduccion),
       
-      new Paragraph({ text: "10. Referencias", heading: HeadingLevel.HEADING_1 }),
-      ...data.referencias.map(ref => new Paragraph({ text: ref })),
-      new Paragraph({ text: "", spacing: { after: 200 } }),
+      createHeading2("Antecedente"),
+      createPara(data.primeraParte.antecedente),
       
-      new Paragraph({ text: "Anexos", heading: HeadingLevel.HEADING_1 }),
-      new Paragraph({ text: data.anexos })
+      createHeading2("Definición del Problema"),
+      createPara(data.primeraParte.definicionProblema),
+      
+      createHeading2("Justificación del Estudio"),
+      createPara(data.primeraParte.justificacion),
+      
+      createHeading2("Objetivos del Estudio de Caso"),
+      createHeading3("Objetivo General"),
+      createPara(data.primeraParte.objetivos.general),
+      createHeading3("Objetivos Específicos"),
+      ...data.primeraParte.objetivos.especificos.map(obj => createListItem(`• ${obj}`)),
+      
+      new Paragraph({ text: "", pageBreakBefore: true }),
+      
+      // Segunda Parte
+      createHeading1("Segunda Parte: Desarrollo"),
+      createHeading2("Marco Conceptual"),
+      createPara(data.segundaParte.marcoConceptual),
+      
+      createHeading2("Marco Metodológico"),
+      createPara(data.segundaParte.marcoMetodologico),
+      
+      createHeading2("Resultados Obtenidos"),
+      createPara(data.segundaParte.resultadosObtenidos),
+      
+      createHeading2("Análisis de Resultados"),
+      createPara(data.segundaParte.analisisResultados),
+      
+      new Paragraph({ text: "", pageBreakBefore: true }),
+      
+      // Tercera Parte
+      createHeading1("Tercera Parte: Conclusiones y Recomendaciones"),
+      createHeading2("Conclusiones"),
+      ...data.terceraParte.conclusiones.map((c, i) => createPara(`${i + 1}. ${c}`)),
+      
+      createHeading2("Recomendaciones"),
+      ...data.terceraParte.recomendaciones.map((r, i) => createPara(`${i + 1}. ${r}`)),
+      
+      new Paragraph({ text: "", pageBreakBefore: true }),
+      
+      // Cuarta Parte
+      createHeading1("Cuarta Parte"),
+      createHeading2("Referencias"),
+      ...data.cuartaParte.referencias.map(ref => createReference(ref)),
+      
+      createHeading2("Anexos"),
+      createPara(data.cuartaParte.anexos)
     ];
   } else if (type === 'petition') {
     docChildren = [
@@ -249,7 +295,38 @@ export async function downloadDOCX(data, type, filename) {
 
   const doc = new Document({
     sections: [{
-      properties: {},
+      properties: {
+        page: {
+          size: {
+            width: (type === 'report' && format.paperSize === 'carta') ? 12240 : 11906, // Letter vs A4
+            height: (type === 'report' && format.paperSize === 'carta') ? 15840 : 16838
+          },
+          margin: {
+            top: (type === 'report') ? marginSize : 1134, // 2.54 cm = 1440, Standard = 1134
+            bottom: (type === 'report') ? marginSize : 1134,
+            left: (type === 'report') ? marginSize : 1134,
+            right: (type === 'report') ? marginSize : 1134,
+          }
+        },
+        headers: (type === 'report') ? {
+          default: new Header({
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                spacing: { before: 0, after: 0 },
+                indent: { firstLine: 0 },
+                children: [
+                  new TextRun({
+                    children: [PageNumber.CURRENT],
+                    font: fontInfo.name,
+                    size: 20 // 10pt
+                  })
+                ]
+              })
+            ]
+          })
+        } : undefined
+      },
       children: docChildren
     }]
   });
@@ -266,221 +343,248 @@ export async function downloadDOCX(data, type, filename) {
 }
 
 // 2. Exportador a PDF (.pdf)
-export function downloadPDF(data, type, filename) {
+export function downloadPDF(data, type, filename, reportFormat) {
+  const format = reportFormat || {
+    paperSize: 'carta',
+    font: 'times12',
+    margin: '2.54',
+    spacing: '2.0',
+    alignment: 'left',
+    indent: '1.27'
+  };
+
+  const isCarta = format.paperSize === 'carta';
+  const pageWidth = isCarta ? 215.9 : 210.0;
+  const pageHeight = isCarta ? 279.4 : 297.0;
+  const margin = format.margin === '2.54' ? 25.4 : 20.0; // 2.54cm vs 2.00cm
+  const contentWidth = pageWidth - (2 * margin);
+
   const doc = new jsPDF({
     orientation: 'p',
     unit: 'mm',
-    format: 'a4'
+    format: isCarta ? [215.9, 279.4] : 'a4'
   });
+
+  const fontMapping = {
+    times12: { name: "times", size: 12 },
+    georgia11: { name: "times", size: 11 },
+    computer10: { name: "times", size: 10 },
+    calibri11: { name: "helvetica", size: 11 },
+    arial11: { name: "helvetica", size: 11 },
+    lucida10: { name: "helvetica", size: 10 }
+  };
+  const fontInfo = fontMapping[format.font] || fontMapping.times12;
+  const pdfFont = fontInfo.name;
+  const fontSize = fontInfo.size;
+  const spacingMultiplier = Number(format.spacing) || 2.0;
+  const lineHeightMm = fontSize * 0.353 * spacingMultiplier;
+  const paragraphSpacing = 0; 
+  const isJustify = format.alignment === 'justify';
+  const firstLineIndent = format.indent === '1.27' ? 12.7 : 0; // 1.27 cm = 12.7 mm
+
+  // Header/Footer page numbering helper (Externo superior derecho, en números arábigos)
+  const addHeaderFooter = () => {
+    const pageCount = doc.internal.getNumberOfPages();
+    if (pageCount === 1) return;
+
+    doc.setFont(pdfFont, "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(140, 140, 140);
+    doc.text(String(pageCount), pageWidth - margin, 12.7, { align: "right" });
+  };
+
+  // Helper to write styled paragraph with overflow checking
+  const writeParagraph = (text, startY, isReference = false) => {
+    doc.setFont(pdfFont, "normal");
+    doc.setFontSize(fontSize);
+    doc.setTextColor(50, 50, 50);
+
+    const xPos = margin;
+    const currentLines = doc.splitTextToSize(text, contentWidth);
+    const paraHeight = currentLines.length * lineHeightMm;
+
+    if (startY + paraHeight > pageHeight - margin) {
+      doc.addPage();
+      addHeaderFooter();
+      startY = margin + 10;
+    }
+
+    if (isReference) {
+      if (currentLines.length > 0) {
+        doc.text(currentLines[0], xPos, startY, { align: isJustify ? "justify" : "left", maxWidth: contentWidth });
+        if (currentLines.length > 1) {
+          const remainingText = currentLines.slice(1).join(" ");
+          const subLines = doc.splitTextToSize(remainingText, contentWidth - 12.7);
+          subLines.forEach((line, idx) => {
+            doc.text(line, xPos + 12.7, startY + lineHeightMm + (idx * lineHeightMm), { align: isJustify ? "justify" : "left", maxWidth: contentWidth - 12.7 });
+          });
+          return startY + lineHeightMm + (subLines.length * lineHeightMm) + paragraphSpacing;
+        }
+      }
+    } else {
+      if (firstLineIndent > 0 && currentLines.length > 0) {
+        doc.text(currentLines[0], xPos + firstLineIndent, startY, { align: isJustify ? "justify" : "left", maxWidth: contentWidth - firstLineIndent });
+        if (currentLines.length > 1) {
+          const remainingText = currentLines.slice(1).join(" ");
+          const subLines = doc.splitTextToSize(remainingText, contentWidth);
+          subLines.forEach((line, idx) => {
+            doc.text(line, xPos, startY + lineHeightMm + (idx * lineHeightMm), { align: isJustify ? "justify" : "left", maxWidth: contentWidth });
+          });
+          return startY + lineHeightMm + (subLines.length * lineHeightMm) + paragraphSpacing;
+        }
+      } else {
+        doc.text(currentLines, xPos, startY, { align: isJustify ? "justify" : "left", maxWidth: contentWidth });
+      }
+    }
+
+    return startY + paraHeight + paragraphSpacing;
+  };
+
+  const writeHeading1 = (text, startY) => {
+    doc.setFont(pdfFont, "bold");
+    doc.setFontSize(fontSize + 3);
+    doc.setTextColor(170, 59, 255); // Purple
+    if (startY + 15 > pageHeight - margin) {
+      doc.addPage();
+      addHeaderFooter();
+      startY = margin + 10;
+    }
+    doc.text(text, margin, startY);
+    return startY + 8;
+  };
+
+  const writeHeading2 = (text, startY) => {
+    doc.setFont(pdfFont, "bold");
+    doc.setFontSize(fontSize + 1);
+    doc.setTextColor(8, 6, 13);
+    if (startY + 15 > pageHeight - margin) {
+      doc.addPage();
+      addHeaderFooter();
+      startY = margin + 10;
+    }
+    doc.text(text, margin, startY);
+    return startY + 8;
+  };
+
+  const writeHeading3 = (text, startY) => {
+    doc.setFont(pdfFont, "bold");
+    doc.setFontSize(fontSize);
+    doc.setTextColor(8, 6, 13);
+    if (startY + 12 > pageHeight - margin) {
+      doc.addPage();
+      addHeaderFooter();
+      startY = margin + 10;
+    }
+    doc.text(text, margin, startY);
+    return startY + 6;
+  };
 
   if (type === 'report' || type === 'docx' || type === 'pdf') {
     // Portada
     doc.setFillColor(170, 59, 255);
-    doc.rect(0, 0, 8, 297, "F");
+    doc.rect(0, 0, 8, pageHeight, "F");
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(80, 80, 80);
-    doc.text(data.institution.toUpperCase(), 25, 40);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.department || "DEPARTAMENTO DE TECNOLOGÍA E INNOVACIÓN", 25, 46);
-
-    doc.setFont("helvetica", "bold");
+    doc.setFont(pdfFont, "bold");
     doc.setFontSize(22);
     doc.setTextColor(8, 6, 13);
-    const titleLines = doc.splitTextToSize(data.title.toUpperCase(), 160);
-    doc.text(titleLines, 25, 90);
+    doc.text("ESTUDIO DE CASO", 25, 60);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(13);
-    doc.setTextColor(120, 120, 120);
-    doc.text("INFORME TÉCNICO DE INVESTIGACIÓN", 25, 125);
+    const titleLines = doc.splitTextToSize(data.title.toUpperCase(), pageWidth - 45);
+    doc.text(titleLines, 25, 100);
 
-    doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.setTextColor(8, 6, 13);
-    doc.text("INTEGRANTES:", 25, 180);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.authors, 25, 186);
+    doc.text("ESTUDIANTE:", 25, 160);
+    doc.setFont(pdfFont, "normal");
+    doc.text(data.authors, 25, 166);
 
-    doc.setFont("helvetica", "bold");
-    doc.text("DOCENTE / TUTOR:", 25, 205);
-    doc.setFont("helvetica", "normal");
-    doc.text(data.advisor, 25, 211);
+    doc.setFont(pdfFont, "bold");
+    doc.text("CURSO:", 25, 185);
+    doc.setFont(pdfFont, "normal");
+    doc.text(data.course, 25, 191);
+
+    doc.setFont(pdfFont, "bold");
+    doc.text("TUTOR:", 25, 210);
+    doc.setFont(pdfFont, "normal");
+    doc.text(data.advisor, 25, 216);
 
     doc.setFontSize(9);
     doc.setTextColor(140, 140, 140);
-    doc.text(`${data.place}, ${data.date}`, 25, 260);
+    doc.text(data.date, 25, 260);
 
-    // Resumen / Abstract
+    // Primera Parte: Antecedentes
     doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    let y = 30;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(170, 59, 255);
-    doc.text("Resumen", 20, y);
-    y += 7;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.setTextColor(50, 50, 50);
-    let lines = doc.splitTextToSize(data.abstract.resumen, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 8;
+    addHeaderFooter();
+    let y = margin + 10;
+    
+    y = writeHeading1("Primera Parte: Antecedentes", y);
+    y = writeHeading2("Introducción", y);
+    y = writeParagraph(data.primeraParte.introduccion, y);
+    
+    y = writeHeading2("Antecedente", y);
+    y = writeParagraph(data.primeraParte.antecedente, y);
+    
+    y = writeHeading2("Definición del Problema", y);
+    y = writeParagraph(data.primeraParte.definicionProblema, y);
+    
+    y = writeHeading2("Justificación del Estudio", y);
+    y = writeParagraph(data.primeraParte.justificacion, y);
 
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(170, 59, 255);
-    doc.text("Abstract", 20, y);
-    y += 7;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.abstract.abstract, 170);
-    doc.text(lines, 20, y);
-
-    // Introducción
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "1. Introducción", data.introduccion, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("2. Objetivos", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10.5);
-    doc.setTextColor(50, 50, 50);
-    doc.text("2.1. Objetivo General", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.objetivos.general, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("2.2. Objetivos Específicos", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    data.objetivos.especificos.forEach(obj => {
-      lines = doc.splitTextToSize(`• ${obj}`, 165);
-      doc.text(lines, 24, y);
-      y += (lines.length * 5.2) + 2;
+    y = writeHeading2("Objetivos del Estudio de Caso", y);
+    y = writeHeading3("Objetivo General", y);
+    y = writeParagraph(data.primeraParte.objetivos.general, y);
+    
+    y = writeHeading3("Objetivos Específicos", y);
+    data.primeraParte.objetivos.especificos.forEach(obj => {
+      y = writeParagraph(`• ${obj}`, y);
     });
 
-    // Marco Teórico & Metodología
+    // Segunda Parte: Desarrollo
     doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "3. Marco Teórico", data.marcoTeorico, y);
-    y += 8;
+    addHeaderFooter();
+    y = margin + 10;
+    
+    y = writeHeading1("Segunda Parte: Desarrollo", y);
+    y = writeHeading2("Marco Conceptual", y);
+    y = writeParagraph(data.segundaParte.marcoConceptual, y);
+    
+    y = writeHeading2("Marco Metodológico", y);
+    y = writeParagraph(data.segundaParte.marcoMetodologico, y);
+    
+    y = writeHeading2("Resultados Obtenidos", y);
+    y = writeParagraph(data.segundaParte.resultadosObtenidos, y);
+    
+    y = writeHeading2("Análisis de Resultados", y);
+    y = writeParagraph(data.segundaParte.analisisResultados, y);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("4. Metodología", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    lines = doc.splitTextToSize(`Tipo de Investigación: ${data.metodologia.tipo}\n\nHerramientas: ${data.metodologia.herramientas}\n\nMateriales: ${data.metodologia.materiales}\n\nFases: ${data.metodologia.fases}`, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 6;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Procedimiento Detallado:", 20, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.metodologia.procedimiento, 170);
-    doc.text(lines, 20, y);
-
-    // Desarrollo y Resultados
+    // Tercera Parte: Conclusiones y Recomendaciones
     doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    y = addPDFSection(doc, "5. Desarrollo del Proyecto", data.desarrollo, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("6. Resultados y Discusión", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.resultados.descripcion, 170);
-    doc.text(lines, 20, y);
-    y += (lines.length * 5.2) + 6;
-
-    const tableBody = data.resultados.tablaResultados.map(row => [
-      row.metrica,
-      row.sinProyecto,
-      row.conProyecto,
-      row.mejora
-    ]);
-
-    doc.autoTable({
-      startY: y,
-      head: [['Métrica', 'Sin Proyecto', 'Con Proyecto', 'Mejora']],
-      body: tableBody,
-      theme: 'grid',
-      headStyles: { fillColor: [170, 59, 255], textColor: [255, 255, 255] },
-      styles: { fontSize: 9.5, cellPadding: 2.5 },
-      margin: { left: 20, right: 20 }
+    addHeaderFooter();
+    y = margin + 10;
+    
+    y = writeHeading1("Tercera Parte: Conclusiones y Recomendaciones", y);
+    y = writeHeading2("Conclusiones", y);
+    data.terceraParte.conclusiones.forEach((c, idx) => {
+      y = writeParagraph(`${idx + 1}. ${c}`, y);
     });
 
-    // Discusión y Conclusiones
+    y = writeHeading2("Recomendaciones", y);
+    data.terceraParte.recomendaciones.forEach((r, idx) => {
+      y = writeParagraph(`${idx + 1}. ${r}`, y);
+    });
+
+    // Cuarta Parte
     doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = doc.lastAutoTable.finalY + 10;
-    y = addPDFSection(doc, "7. Discusión de Resultados", data.discusion, y);
-    y += 8;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("8. Conclusiones", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.conclusiones.forEach((c, idx) => {
-      lines = doc.splitTextToSize(`${idx + 1}. ${c}`, 170);
-      doc.text(lines, 20, y);
-      y += (lines.length * 5.2) + 3;
+    addHeaderFooter();
+    y = margin + 10;
+    
+    y = writeHeading1("Cuarta Parte", y);
+    y = writeHeading2("Referencias", y);
+    data.cuartaParte.referencias.forEach(ref => {
+      y = writeParagraph(ref, y, true);
     });
-    y += 5;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("9. Recomendaciones", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.recomendaciones.forEach((r, idx) => {
-      lines = doc.splitTextToSize(`${idx + 1}. ${r}`, 170);
-      doc.text(lines, 20, y);
-      y += (lines.length * 5.2) + 3;
-    });
-
-    // Referencias
-    doc.addPage();
-    addPDFHeaderFooter(doc, data.title);
-    y = 30;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(170, 59, 255);
-    doc.text("10. Referencias Bibliográficas", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    data.referencias.forEach(ref => {
-      lines = doc.splitTextToSize(ref, 170);
-      doc.text(lines, 20, y);
-      y += (lines.length * 5.2) + 3;
-    });
-    y += 10;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Anexos", 20, y);
-    y += 6;
-    doc.setFont("helvetica", "normal");
-    lines = doc.splitTextToSize(data.anexos, 170);
-    doc.text(lines, 20, y);
+    
+    y = writeHeading2("Anexos", y);
+    y = writeParagraph(data.cuartaParte.anexos, y);
 
   } else if (type === 'petition') {
     doc.setFont("helvetica", "bold");

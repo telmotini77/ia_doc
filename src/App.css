@@ -9,25 +9,25 @@
   --bg-card: #150f26;
   --bg-input: #1a1330;
   --bg-pill: #1f1738;
-  
+
   --border-color: #2a1e45;
   --border-glow: #3d2a63;
-  
+
   --text-primary: #e6e3ed;
   --text-secondary: #a49db2;
   --text-muted: #6f687d;
-  
+
   --primary: #aa3bff;
   --primary-hover: #b958ff;
   --primary-glow: rgba(170, 59, 255, 0.4);
-  
+
   --success: #10b981;
   --success-glow: rgba(16, 185, 129, 0.2);
   --error: #ef4444;
   --error-glow: rgba(239, 68, 68, 0.2);
   --info: #3b82f6;
   --info-glow: rgba(59, 130, 246, 0.2);
-  
+
   --font-sans: 'Outfit', 'Inter', system-ui, sans-serif;
   --shadow-premium: 0 12px 40px rgba(0, 0, 0, 0.5);
   --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -359,8 +359,15 @@ body {
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ==========================================================================
@@ -372,7 +379,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 32px;
-  height: 100vh;
+  height: 165vh;
   overflow-y: auto;
   box-sizing: border-box;
 }
@@ -417,7 +424,7 @@ body {
   border-radius: var(--radius-lg);
   padding: 10px;
   gap: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
   position: relative;
   transition: border-color 0.3s, box-shadow 0.3s;
 }
@@ -487,11 +494,13 @@ body {
   gap: 8px;
   overflow-x: auto;
   padding: 4px 0;
-  scrollbar-width: none; /* Firefox */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 .pills-scroll::-webkit-scrollbar {
-  display: none; /* Chrome/Safari */
+  display: none;
+  /* Chrome/Safari */
 }
 
 .pill {
@@ -626,7 +635,14 @@ body {
   padding: 60px 40px;
   color: var(--text-secondary);
   text-align: center;
-  flex-grow: 1;
+  width: 100%;
+  max-width: 794px;
+  aspect-ratio: 210 / 297;
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  margin: 0 auto;
 }
 
 .icon-circle {
@@ -674,13 +690,31 @@ body {
   border-radius: 4px;
 }
 
-.skeleton-line.title { height: 24px; width: 60%; margin: 0 auto; }
-.skeleton-line.header { height: 16px; width: 40%; margin: 0 auto; }
-.skeleton-line.body { height: 12px; width: 100%; }
+.skeleton-line.title {
+  height: 24px;
+  width: 60%;
+  margin: 0 auto;
+}
+
+.skeleton-line.header {
+  height: 16px;
+  width: 40%;
+  margin: 0 auto;
+}
+
+.skeleton-line.body {
+  height: 12px;
+  width: 100%;
+}
 
 @keyframes loadingShimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .canvas-content {
@@ -691,6 +725,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow-y: auto;
 }
 
 /* 1. REPORT PREVIEW STYLING (A4 Pages Simulation) */
@@ -706,21 +741,49 @@ body {
 .pdf-page {
   background: #fff;
   color: #1e1b24;
-  padding: 55px 50px;
-  min-height: 700px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  padding: var(--page-margin, 55px 50px);
+  aspect-ratio: var(--page-aspect-ratio, 210 / 297);
+  height: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   box-sizing: border-box;
-  text-align: left;
+  text-align: var(--page-text-align, left);
   border-radius: 4px;
   position: relative;
-  line-height: 155%;
+  line-height: var(--page-line-height, 155%);
+  font-family: var(--page-font, 'Outfit', 'Inter', sans-serif);
 }
 
 .pdf-page p {
-  font-size: 13.5px;
-  margin-bottom: 16px;
+  font-size: var(--page-font-size, 13.5px);
+  margin-bottom: 0 !important; /* Sin espacio entre párrafos como en la especificación */
   color: #383440;
-  text-align: justify;
+  text-align: var(--page-text-align, justify);
+  text-indent: var(--page-text-indent, 0cm);
+  line-height: var(--page-line-height, 155%);
+}
+
+/* Headings, lists and cover contents should NOT be indented */
+.pdf-page h2, 
+.pdf-page h3, 
+.pdf-page h4, 
+.pdf-page ul, 
+.pdf-page ol, 
+.pdf-page table,
+.cover-page p, 
+.cover-page h1, 
+.cover-page span {
+  text-indent: 0 !important;
+}
+
+.page-number-top-right {
+  position: absolute;
+  top: calc(var(--page-margin, 2.54cm) / 2);
+  right: var(--page-margin, 2.54cm);
+  font-family: var(--page-font, 'Outfit', 'Inter', sans-serif);
+  font-size: 10pt;
+  color: #555;
+  font-weight: 600;
+  text-indent: 0 !important;
 }
 
 .pdf-page h2 {
@@ -743,7 +806,8 @@ body {
   margin: 16px 0 8px 0;
 }
 
-.pdf-page ul, .pdf-page ol {
+.pdf-page ul,
+.pdf-page ol {
   font-size: 13.5px;
   color: #383440;
   padding-left: 20px;
@@ -838,7 +902,8 @@ body {
   font-size: 13px;
 }
 
-.preview-table th, .preview-table td {
+.preview-table th,
+.preview-table td {
   border: 1px solid #eae6f0;
   padding: 10px 12px;
   text-align: left;
@@ -860,8 +925,35 @@ body {
 }
 
 .ref-list li {
-  margin-bottom: 10px;
-  text-align: justify;
+  margin-bottom: 0 !important;
+  text-align: var(--page-text-align, justify);
+  text-indent: calc(-1 * var(--page-text-indent, 0cm)) !important;
+  padding-left: var(--page-text-indent, 0cm);
+}
+
+/* Premium selectors styling */
+.premium-select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: #fff;
+  font-size: 12.5px;
+  font-family: var(--font-sans);
+  padding: 8px 12px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+}
+
+.premium-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary-glow);
+}
+
+.premium-select option {
+  background: var(--bg-sidebar);
+  color: #fff;
 }
 
 /* ==========================================================================
@@ -869,7 +961,7 @@ body {
    ========================================================================== */
 .preview-presentation {
   width: 100%;
-  max-width: 800px;
+  max-width: 780px;
   margin: 0 auto;
 }
 
@@ -880,11 +972,12 @@ body {
 }
 
 .slide-card {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 210 / 297;
+  height: auto;
   background: #141021;
   border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-premium);
-  border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
   position: relative;
   display: flex;
   text-align: left;
@@ -901,7 +994,7 @@ body {
 
 .slide-cover {
   flex: 1;
-  padding: 40px 48px;
+  padding: 60px 50px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -917,7 +1010,7 @@ body {
 }
 
 .slide-main-title {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   color: #ddbbff;
   line-height: 130%;
@@ -936,7 +1029,7 @@ body {
 
 .slide-body-content {
   flex: 1;
-  padding: 24px 36px;
+  padding: 40px 50px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1003,7 +1096,7 @@ body {
   border: 1px solid var(--border-color);
   padding: 6px 10px;
   color: var(--text-secondary);
-  background: rgba(15,10,28,0.2);
+  background: rgba(15, 10, 28, 0.2);
 }
 
 .slide-table tr.th-row td {
@@ -1111,7 +1204,8 @@ body {
   color: #333;
 }
 
-.excel-table.grid th, .excel-table.grid td {
+.excel-table.grid th,
+.excel-table.grid td {
   border: 1px solid #d4d4d4;
   padding: 7px 10px;
   text-align: left;
@@ -1194,7 +1288,7 @@ body {
   background: #fff;
   color: #1e1b24;
   padding: 60px 50px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
   box-sizing: border-box;
   text-align: left;
   border-radius: 4px;
@@ -1230,7 +1324,9 @@ body {
   color: #383440;
 }
 
-.oficio-meta-row p { margin: 0; }
+.oficio-meta-row p {
+  margin: 0;
+}
 
 .oficio-destinatario {
   display: flex;
@@ -1238,7 +1334,9 @@ body {
   gap: 2px;
 }
 
-.oficio-destinatario p { margin: 0; }
+.oficio-destinatario p {
+  margin: 0;
+}
 
 .oficio-asunto {
   background: #faf9fc;
@@ -1246,7 +1344,9 @@ body {
   padding: 8px 12px;
 }
 
-.oficio-asunto p { margin: 0; }
+.oficio-asunto p {
+  margin: 0;
+}
 
 .oficio-greeting {
   margin: 0;
@@ -1269,7 +1369,9 @@ body {
   padding-left: 30px;
 }
 
-.oficio-list-section p { margin: 0 0 6px 0; }
+.oficio-list-section p {
+  margin: 0 0 6px 0;
+}
 
 .oficio-list-section ul {
   margin: 0;
@@ -1292,7 +1394,9 @@ body {
   width: 250px;
 }
 
-.oficio-signature p { margin: 0; }
+.oficio-signature p {
+  margin: 0;
+}
 
 .signature-line {
   width: 100%;
@@ -1308,7 +1412,9 @@ body {
   padding-top: 10px;
 }
 
-.oficio-anexos p { margin: 0 0 2px 0; }
+.oficio-anexos p {
+  margin: 0 0 2px 0;
+}
 
 /* ==========================================================================
    TOAST NOTIFICATIONS AND LOADER SPINNER
@@ -1347,8 +1453,15 @@ body {
 }
 
 @keyframes slideInRight {
-  from { transform: translateX(120%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .spinner {
@@ -1356,12 +1469,21 @@ body {
 }
 
 @keyframes spin {
-  100% { transform: rotate(360deg); }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse {
-  from { opacity: 0.6; filter: drop-shadow(0 0 4px var(--primary-glow)); }
-  to { opacity: 1; filter: drop-shadow(0 0 12px var(--primary)); }
+  from {
+    opacity: 0.6;
+    filter: drop-shadow(0 0 4px var(--primary-glow));
+  }
+
+  to {
+    opacity: 1;
+    filter: drop-shadow(0 0 12px var(--primary));
+  }
 }
 
 .pulsate {
@@ -1373,8 +1495,15 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ==========================================================================
@@ -1411,8 +1540,13 @@ body {
 }
 
 @keyframes pulseGreen {
-  from { opacity: 0.6; }
-  to { opacity: 1; }
+  from {
+    opacity: 0.6;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .ml-status-text {
@@ -1536,7 +1670,8 @@ body {
   text-align: left;
 }
 
-.slide-col-card h4, .slide-single-card h4 {
+.slide-col-card h4,
+.slide-single-card h4 {
   font-size: 15px;
   font-weight: 700;
   color: #DDBBFF;
@@ -1641,11 +1776,11 @@ body {
   position: relative;
 }
 
-.checkbox-container:hover input ~ .checkmark {
+.checkbox-container:hover input~.checkmark {
   border-color: var(--primary);
 }
 
-.checkbox-container input:checked ~ .checkmark {
+.checkbox-container input:checked~.checkmark {
   background: var(--primary);
   border-color: var(--primary);
 }
@@ -1663,7 +1798,7 @@ body {
   transform: rotate(45deg);
 }
 
-.checkbox-container input:checked ~ .checkmark:after {
+.checkbox-container input:checked~.checkmark:after {
   display: block;
 }
 
@@ -1723,7 +1858,7 @@ body {
   border: 1px solid #e1dfdd;
   border-radius: 6px;
   padding: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2575,6 +2710,13 @@ body {
 }
 
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

@@ -27,6 +27,7 @@ export default function App() {
   const [docType, setDocType] = useState('report'); // 'report', 'presentation', 'spreadsheet', 'petition', 'response'
   const [loading, setLoading] = useState(false);
   const [generatedData, setGeneratedData] = useState(null);
+  const [attachedFiles, setAttachedFiles] = useState([]);
   
   // Machine Learning classifier state
   const [classifier, setClassifier] = useState(null);
@@ -40,6 +41,18 @@ export default function App() {
   const [institution, setInstitution] = useState('');
   const [authors, setAuthors] = useState('');
   const [advisor, setAdvisor] = useState('');
+
+  // Cover page visual customizations
+  const [coverLogo, setCoverLogo] = useState('');
+  const [coverAlign, setCoverAlign] = useState('left');
+  const [coverSizes, setCoverSizes] = useState({
+    title: 24,
+    authors: 13,
+    advisor: 13,
+    course: 13,
+    institution: 13,
+    date: 11
+  });
 
   // Excel chart selection state
   const [selectedCharts, setSelectedCharts] = useState(['pie', 'bar', 'line']);
@@ -57,6 +70,16 @@ export default function App() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [activeSheet, setActiveSheet] = useState('hoja1');
   const [toast, setToast] = useState(null);
+
+  // Document formatting state (for reports)
+  const [reportFormat, setReportFormat] = useState({
+    paperSize: 'carta',
+    font: 'times12',
+    margin: '2.54',
+    spacing: '2.0',
+    alignment: 'left',
+    indent: '1.27'
+  });
 
   // Train the Neural Network Classifier on mount
   useEffect(() => {
@@ -140,7 +163,7 @@ export default function App() {
 
       if (aiMode === 'gemini' && geminiApiKey.trim()) {
         try {
-          data = await generateGeminiContent(prompt, docType, geminiApiKey, customMetadataObj);
+          data = await generateGeminiContent(prompt, docType, geminiApiKey, customMetadataObj, attachedFiles);
           
           if (data) {
             // Apply fallbacks if properties are not fully mapped in Gemini response
@@ -210,10 +233,10 @@ export default function App() {
       const baseFilename = `${cleanTitle.replace(/\s+/g, '_')}`;
 
       if (format === 'pdf') {
-        downloadPDF(generatedData, docType, `${baseFilename}.pdf`);
+        downloadPDF(generatedData, docType, `${baseFilename}.pdf`, reportFormat, coverLogo, coverAlign, coverSizes);
         showToast("Descarga de PDF iniciada con éxito.", "success");
       } else if (format === 'word' && (docType === 'report' || docType === 'petition' || docType === 'response')) {
-        await downloadDOCX(generatedData, docType, `${baseFilename}.docx`);
+        await downloadDOCX(generatedData, docType, `${baseFilename}.docx`, reportFormat, coverLogo, coverAlign, coverSizes);
         showToast("Descarga de Word (.docx) iniciada.", "success");
       } else if (format === 'excel' && docType === 'spreadsheet') {
         downloadXLSX(generatedData, `${baseFilename}.xlsx`, selectedCharts);
@@ -267,6 +290,14 @@ export default function App() {
           trainStats={trainStats}
           trainingLogs={trainingLogs}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          reportFormat={reportFormat}
+          setReportFormat={setReportFormat}
+          coverLogo={coverLogo}
+          setCoverLogo={setCoverLogo}
+          coverAlign={coverAlign}
+          setCoverAlign={setCoverAlign}
+          coverSizes={coverSizes}
+          setCoverSizes={setCoverSizes}
         />
 
         <main className="workspace">
@@ -286,6 +317,8 @@ export default function App() {
             onSubmit={handleGenerate}
             prediction={prediction}
             aiMode={aiMode}
+            attachedFiles={attachedFiles}
+            setAttachedFiles={setAttachedFiles}
           />
 
           <DocumentPreview
@@ -299,6 +332,10 @@ export default function App() {
             selectedCharts={selectedCharts}
             prediction={prediction}
             onDownload={handleDownload}
+            reportFormat={reportFormat}
+            coverLogo={coverLogo}
+            coverAlign={coverAlign}
+            coverSizes={coverSizes}
           />
         </main>
       </div>

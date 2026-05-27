@@ -4,6 +4,15 @@ import {
 } from 'lucide-react';
 import { parseSlideText } from '../utils/documentGenerator';
 
+const fontMapping = {
+  times12: { family: "'Times New Roman', Times, serif", size: '12pt' },
+  georgia11: { family: "Georgia, serif", size: '11pt' },
+  computer10: { family: "'Computer Modern', 'Courier New', serif", size: '10pt' },
+  calibri11: { family: "Calibri, sans-serif", size: '11pt' },
+  arial11: { family: "Arial, sans-serif", size: '11pt' },
+  lucida10: { family: "'Lucida Sans Unicode', sans-serif", size: '10pt' }
+};
+
 export default function DocumentPreview({
   docType,
   loading,
@@ -14,7 +23,11 @@ export default function DocumentPreview({
   setActiveSheet,
   selectedCharts,
   prediction,
-  onDownload
+  onDownload,
+  reportFormat,
+  coverLogo,
+  coverAlign,
+  coverSizes
 }) {
   return (
     <div className="preview-container glassmorphism">
@@ -71,115 +84,180 @@ export default function DocumentPreview({
             
             {/* TYPE A: Report Preview */}
             {docType === 'report' && (
-              <div className="preview-report">
+              <div 
+                className="preview-report"
+                style={{
+                  '--page-margin': (reportFormat?.margin === '2.54' ? '2.54cm' : '2.00cm'),
+                  '--page-font': fontMapping[reportFormat?.font || 'times12'].family,
+                  '--page-font-size': fontMapping[reportFormat?.font || 'times12'].size,
+                  '--page-line-height': reportFormat?.spacing || '2.0',
+                  '--page-text-align': reportFormat?.alignment === 'left' ? 'left' : 'justify',
+                  '--page-text-indent': reportFormat?.indent === '1.27' ? '1.27cm' : '0cm',
+                  '--page-aspect-ratio': reportFormat?.paperSize === 'carta' ? '215.9 / 279.4' : '210 / 297'
+                }}
+              >
                 <div className="pdf-page cover-page">
-                  <div className="cover-stripe"></div>
-                  <div className="cover-details">
-                    <p className="cover-inst">{generatedData.institution}</p>
-                    <p className="cover-dept">{generatedData.department}</p>
-                    <h1 className="cover-title">{generatedData.title}</h1>
-                    <p className="cover-subtitle">INFORME TÉCNICO DE INVESTIGACIÓN</p>
-                    <div className="cover-meta">
-                      <p><strong>INTEGRANTES:</strong> {generatedData.authors}</p>
-                      <p><strong>DOCENTE:</strong> {generatedData.advisor}</p>
+                  {coverAlign !== 'center' && <div className="cover-stripe"></div>}
+                  <div 
+                    className="cover-details"
+                    style={{
+                      textAlign: coverAlign || 'left',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: coverAlign === 'center' ? 'center' : coverAlign === 'right' ? 'flex-end' : 'flex-start',
+                      padding: '50px'
+                    }}
+                  >
+                    {coverLogo && (
+                      <div className="cover-logo-preview-container" style={{ marginBottom: '20px', maxHeight: '100px', display: 'flex', justifyContent: coverAlign === 'center' ? 'center' : coverAlign === 'right' ? 'flex-end' : 'flex-start' }}>
+                        <img src={coverLogo} alt="Logo" className="cover-logo-img" style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }} />
+                      </div>
+                    )}
+                    
+                    <h1 
+                      className="cover-title" 
+                      style={{ 
+                        marginTop: coverLogo ? '10px' : '40px',
+                        fontSize: coverSizes?.title ? `${coverSizes.title}px` : '24px',
+                        textAlign: coverAlign || 'left',
+                        marginRight: '0px',
+                        marginLeft: '0px',
+                        width: '100%'
+                      }}
+                    >
+                      {generatedData.title}
+                    </h1>
+                    
+                    <p 
+                      className="cover-subtitle"
+                      style={{
+                        fontSize: '13px',
+                        textAlign: coverAlign || 'left',
+                        width: '100%',
+                        color: 'var(--text-muted)'
+                      }}
+                    >
+                      ESTUDIO DE CASO
+                    </p>
+                    
+                    <div 
+                      className="cover-meta" 
+                      style={{ 
+                        marginTop: '40px',
+                        width: '100%',
+                        textAlign: coverAlign || 'left',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      {generatedData.institution && (
+                        <p style={{ fontSize: coverSizes?.institution ? `${coverSizes.institution}px` : '13px', margin: '0' }}>
+                          <strong>INSTITUCIÓN:</strong> {generatedData.institution}
+                        </p>
+                      )}
+                      <p style={{ fontSize: coverSizes?.authors ? `${coverSizes.authors}px` : '13px', margin: '0' }}>
+                        <strong>ESTUDIANTE:</strong> {generatedData.authors}
+                      </p>
+                      <p style={{ fontSize: coverSizes?.course ? `${coverSizes.course}px` : '13px', margin: '0' }}>
+                        <strong>CURSO:</strong> {generatedData.course}
+                      </p>
+                      <p style={{ fontSize: coverSizes?.advisor ? `${coverSizes.advisor}px` : '13px', margin: '0' }}>
+                        <strong>TUTOR:</strong> {generatedData.advisor}
+                      </p>
                     </div>
-                    <p className="cover-date">{generatedData.place}, {generatedData.date}</p>
+                    
+                    <p 
+                      className="cover-date" 
+                      style={{ 
+                        marginTop: '50px',
+                        fontSize: coverSizes?.date ? `${coverSizes.date}px` : '11.5px',
+                        width: '100%',
+                        textAlign: coverAlign || 'left'
+                      }}
+                    >
+                      {generatedData.date}
+                    </p>
                   </div>
                 </div>
 
                 <div className="pdf-page">
-                  <h2>Resumen</h2>
-                  <p>{generatedData.abstract.resumen}</p>
+                  <div className="page-number-top-right">2</div>
+                  <h2 className="section-title">Primera Parte: Antecedentes</h2>
                   
-                  <h2 style={{ marginTop: '24px' }}>Abstract</h2>
-                  <p style={{ fontStyle: 'italic' }}>{generatedData.abstract.abstract}</p>
-                </div>
-
-                <div className="pdf-page">
-                  <h2>1. Introducción</h2>
-                  <p>{generatedData.introduccion}</p>
-
-                  <h2>2. Objetivos</h2>
-                  <h3>2.1. Objetivo General</h3>
-                  <p>{generatedData.objetivos.general}</p>
+                  <h3>Introducción</h3>
+                  <p>{generatedData.primeraParte.introduccion}</p>
                   
-                  <h3>2.2. Objetivos Específicos</h3>
+                  <h3>Antecedente</h3>
+                  <p>{generatedData.primeraParte.antecedente}</p>
+
+                  <h3>Definición del Problema</h3>
+                  <p>{generatedData.primeraParte.definicionProblema}</p>
+
+                  <h3>Justificación del Estudio</h3>
+                  <p>{generatedData.primeraParte.justificacion}</p>
+
+                  <h3>Objetivos del Estudio de Caso</h3>
+                  <h4>Objetivo General</h4>
+                  <p>{generatedData.primeraParte.objetivos.general}</p>
+                  <h4>Objetivos Específicos</h4>
                   <ul>
-                    {generatedData.objetivos.especificos.map((obj, i) => (
+                    {generatedData.primeraParte.objetivos.especificos.map((obj, i) => (
                       <li key={i}>{obj}</li>
                     ))}
                   </ul>
                 </div>
 
                 <div className="pdf-page">
-                  <h2>3. Marco Teórico</h2>
-                  <p>{generatedData.marcoTeorico}</p>
+                  <div className="page-number-top-right">3</div>
+                  <h2 className="section-title">Segunda Parte: Desarrollo</h2>
+                  
+                  <h3>Marco Conceptual</h3>
+                  <p>{generatedData.segundaParte.marcoConceptual}</p>
 
-                  <h2>4. Metodología</h2>
-                  <p><strong>Tipo de Investigación:</strong> {generatedData.metodologia.tipo}</p>
-                  <p><strong>Herramientas:</strong> {generatedData.metodologia.herramientas}</p>
-                  <p><strong>Materiales:</strong> {generatedData.metodologia.materiales}</p>
-                  <p><strong>Fases del Ciclo:</strong> {generatedData.metodologia.fases}</p>
-                  <h3>Procedimiento Operativo:</h3>
-                  <p>{generatedData.metodologia.procedimiento}</p>
+                  <h3>Marco Metodológico</h3>
+                  <p>{generatedData.segundaParte.marcoMetodologico}</p>
+
+                  <h3>Resultados Obtenidos</h3>
+                  <p>{generatedData.segundaParte.resultadosObtenidos}</p>
+
+                  <h3>Análisis de Resultados</h3>
+                  <p>{generatedData.segundaParte.analisisResultados}</p>
                 </div>
 
                 <div className="pdf-page">
-                  <h2>5. Desarrollo del Proyecto</h2>
-                  <p>{generatedData.desarrollo}</p>
-
-                  <h2>6. Resultados y Discusión</h2>
-                  <p>{generatedData.resultados.descripcion}</p>
+                  <div className="page-number-top-right">4</div>
+                  <h2 className="section-title">Tercera Parte: Conclusiones y Recomendaciones</h2>
                   
-                  <table className="preview-table">
-                    <thead>
-                      <tr>
-                        <th>Métrica Evaluada</th>
-                        <th>Antes (Sin Proyecto)</th>
-                        <th>Después (Con Proyecto)</th>
-                        <th>Mejora (%)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {generatedData.resultados.tablaResultados.map((row, idx) => (
-                        <tr key={idx}>
-                          <td>{row.metrica}</td>
-                          <td>{row.sinProyecto}</td>
-                          <td>{row.conProyecto}</td>
-                          <td className="text-highlight">{row.mejora}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  
-                  <h3 style={{ marginTop: '20px' }}>Discusión</h3>
-                  <p>{generatedData.discusion}</p>
-                </div>
-
-                <div className="pdf-page">
-                  <h2>7. Conclusiones</h2>
+                  <h3>Conclusiones</h3>
                   <ol>
-                    {generatedData.conclusiones.map((c, i) => (
+                    {generatedData.terceraParte.conclusiones.map((c, i) => (
                       <li key={i}>{c}</li>
                     ))}
                   </ol>
 
-                  <h2>8. Recomendaciones</h2>
+                  <h3>Recomendaciones</h3>
                   <ol>
-                    {generatedData.recomendaciones.map((r, i) => (
+                    {generatedData.terceraParte.recomendaciones.map((r, i) => (
                       <li key={i}>{r}</li>
                     ))}
                   </ol>
+                </div>
 
-                  <h2>9. Referencias Bibliográficas</h2>
+                <div className="pdf-page">
+                  <div className="page-number-top-right">5</div>
+                  <h2 className="section-title">Cuarta Parte</h2>
+                  
+                  <h3>Referencias</h3>
                   <ul className="ref-list">
-                    {generatedData.referencias.map((ref, i) => (
+                    {generatedData.cuartaParte.referencias.map((ref, i) => (
                       <li key={i}>{ref}</li>
                     ))}
                   </ul>
 
-                  <h2>Anexos</h2>
-                  <p style={{ whiteSpace: 'pre-line' }}>{generatedData.anexos}</p>
+                  <h3>Anexos</h3>
+                  <p style={{ whiteSpace: 'pre-line' }}>{generatedData.cuartaParte.anexos}</p>
                 </div>
               </div>
             )}

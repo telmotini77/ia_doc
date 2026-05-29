@@ -34,7 +34,9 @@ export default function Sidebar({
   pptxPalette,
   setPptxPalette,
   customPptxPalette,
-  setCustomPptxPalette
+  setCustomPptxPalette,
+  presentationStyle,
+  setPresentationStyle
 }) {
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [isConsoleOpen, setIsConsoleOpen] = useState(true);
@@ -281,6 +283,18 @@ export default function Sidebar({
                       <option value="lightMinimal">Mínimo Claro</option>
                       <option value="monochrome">Monocromo Oscuro</option>
                       <option value="custom">Personalizado (Elegir colores)</option>
+                    </select>
+                  </div>
+
+                  <div className="meta-field">
+                    <label>Estilo de Estructura</label>
+                    <select
+                      value={presentationStyle}
+                      onChange={(e) => setPresentationStyle(e.target.value)}
+                      className="premium-select"
+                    >
+                      <option value="informe">Formato Informe (Estructurado)</option>
+                      <option value="investigacion">Investigación Ágil (Científico)</option>
                     </select>
                   </div>
 

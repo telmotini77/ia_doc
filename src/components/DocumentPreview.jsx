@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
   BookOpen, FileDown, Download, Presentation, FileSpreadsheet, AlertCircle, Sparkles, ChevronLeft, ChevronRight,
-  Upload, Image, Trash2
+  Upload, Image, Trash2, Plus, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { parseSlideText } from '../utils/documentGenerator';
 import { PPTX_PALETTES } from '../utils/exporters';
@@ -34,8 +34,75 @@ export default function DocumentPreview({
   setIsEditing,
   setGeneratedData,
   pptxPalette,
-  customPptxPalette
+  customPptxPalette,
+  presentationStyle
 }) {
+  const handleAddSlide = () => {
+    if (!generatedData || !generatedData.slides) return;
+    const newSlides = [...generatedData.slides];
+    const newSlide = {
+      num: activeSlide + 2,
+      title: "Nueva Diapositiva",
+      content: "Título de la Sección:\n- Punto clave número uno.\n- Detalle o descripción adicional."
+    };
+    newSlides.splice(activeSlide + 1, 0, newSlide);
+    newSlides.forEach((slide, index) => {
+      slide.num = index + 1;
+    });
+    setGeneratedData(prev => ({
+      ...prev,
+      slides: newSlides
+    }));
+    setActiveSlide(activeSlide + 1);
+  };
+
+  const handleDeleteSlide = () => {
+    if (!generatedData || !generatedData.slides || generatedData.slides.length <= 1) return;
+    const newSlides = [...generatedData.slides];
+    newSlides.splice(activeSlide, 1);
+    newSlides.forEach((slide, index) => {
+      slide.num = index + 1;
+    });
+    setGeneratedData(prev => ({
+      ...prev,
+      slides: newSlides
+    }));
+    if (activeSlide >= newSlides.length) {
+      setActiveSlide(newSlides.length - 1);
+    }
+  };
+
+  const handleMoveSlideUp = () => {
+    if (activeSlide === 0 || !generatedData || !generatedData.slides) return;
+    const newSlides = [...generatedData.slides];
+    const temp = newSlides[activeSlide];
+    newSlides[activeSlide] = newSlides[activeSlide - 1];
+    newSlides[activeSlide - 1] = temp;
+    newSlides.forEach((slide, index) => {
+      slide.num = index + 1;
+    });
+    setGeneratedData(prev => ({
+      ...prev,
+      slides: newSlides
+    }));
+    setActiveSlide(activeSlide - 1);
+  };
+
+  const handleMoveSlideDown = () => {
+    if (!generatedData || !generatedData.slides || activeSlide === generatedData.slides.length - 1) return;
+    const newSlides = [...generatedData.slides];
+    const temp = newSlides[activeSlide];
+    newSlides[activeSlide] = newSlides[activeSlide + 1];
+    newSlides[activeSlide + 1] = temp;
+    newSlides.forEach((slide, index) => {
+      slide.num = index + 1;
+    });
+    setGeneratedData(prev => ({
+      ...prev,
+      slides: newSlides
+    }));
+    setActiveSlide(activeSlide + 1);
+  };
   return (
     <div className="preview-container glassmorphism">
       {/* Top Preview Action Bar */}
@@ -954,6 +1021,44 @@ export default function DocumentPreview({
                         className="btn-slide-nav"
                       >
                         Siguiente <ChevronRight size={16} />
+                      </button>
+                    </div>
+
+                    <div className="slide-editor-toolbar" style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={handleAddSlide}
+                        className="premium-btn btn-settings"
+                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}
+                      >
+                        <Plus size={14} /> Añadir Diapositiva
+                      </button>
+                      <button
+                        type="button"
+                        disabled={activeSlide === 0}
+                        onClick={handleMoveSlideUp}
+                        className="premium-btn btn-settings"
+                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}
+                      >
+                        <ArrowUp size={14} /> Mover Anterior
+                      </button>
+                      <button
+                        type="button"
+                        disabled={activeSlide === generatedData.slides.length - 1}
+                        onClick={handleMoveSlideDown}
+                        className="premium-btn btn-settings"
+                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}
+                      >
+                        <ArrowDown size={14} /> Mover Siguiente
+                      </button>
+                      <button
+                        type="button"
+                        disabled={generatedData.slides.length <= 1}
+                        onClick={handleDeleteSlide}
+                        className="premium-btn btn-settings"
+                        style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', margin: 0, background: '#dc2626', borderColor: '#dc2626', color: '#fff' }}
+                      >
+                        <Trash2 size={14} /> Eliminar Diapositiva
                       </button>
                     </div>
                   </div>

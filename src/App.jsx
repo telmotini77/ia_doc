@@ -84,6 +84,7 @@ export default function App() {
     text: '#E5E3EB',
     muted: '#A5A0B2'
   });
+  const [presentationStyle, setPresentationStyle] = useState('informe');
 
   // Document formatting state (for reports)
   const [reportFormat, setReportFormat] = useState({
@@ -208,14 +209,14 @@ export default function App() {
         } catch (apiErr) {
           console.warn("Gemini API failed, falling back to local Neural AI model:", apiErr);
           showToast("Gemini API Key inválida o error en red. Usando motor local gratuito...", "info");
-          data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext);
+          data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext, presentationStyle);
         }
       } else {
         if (aiMode === 'gemini') {
           showToast("Falta ingresar la Gemini API Key. Usando motor local gratuito...", "info");
         }
         // Local generator
-        data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext);
+        data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext, presentationStyle);
       }
 
       // Override metadata fields if customMetadata is checked
@@ -331,6 +332,8 @@ export default function App() {
           setPptxPalette={setPptxPalette}
           customPptxPalette={customPptxPalette}
           setCustomPptxPalette={setCustomPptxPalette}
+          presentationStyle={presentationStyle}
+          setPresentationStyle={setPresentationStyle}
         />
 
         <main className="workspace">
@@ -380,6 +383,7 @@ export default function App() {
             setGeneratedData={setGeneratedData}
             pptxPalette={pptxPalette}
             customPptxPalette={customPptxPalette}
+            presentationStyle={presentationStyle}
           />
         </main>
       </div>

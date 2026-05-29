@@ -126,14 +126,14 @@ function buildVocabulary(dataset) {
   ];
 
   extraWords.forEach(w => {
-    if (vocab.size < 3000) {
+    if (vocab.size < 10000) {
       vocab.add(w);
     }
   });
 
-  // Rellenar con palabras autogeneradas estructuradas hasta completar exactamente 3000
+  // Rellenar con palabras autogeneradas estructuradas hasta completar exactamente 10000
   let id = 1;
-  while (vocab.size < 3000) {
+  while (vocab.size < 10000) {
     vocab.add(`vocab_pad_${id}`);
     id++;
   }
@@ -802,7 +802,7 @@ function modifyLocalDoc(existingDoc, prompt, reportType, category, title) {
 }
 
 // Generador de Contenido Local Inteligente usando la predicción del modelo neuronal
-export function generateLocalContent(prompt, type, predictionResult = null, reportType = 'tecnico', existingDoc = null) {
+export function generateLocalContent(prompt, type, predictionResult = null, reportType = 'tecnico', existingDoc = null, presentationStyle = 'informe') {
   const metadata = parsePrompt(prompt);
   const { title, institution, authors, advisor, date, place } = metadata;
 
@@ -1111,32 +1111,51 @@ export function generateLocalContent(prompt, type, predictionResult = null, repo
   }
 
   if (type === 'presentation' || type === 'pptx') {
+    const isInvestigacion = presentationStyle === 'investigacion';
+    
+    const reportSlides = [
+      { num: 1, title: "Portada", content: `Título: ${title}\nIntegrantes: ${authors.join(", ")}\nInstitución: ${institution}\nFecha: ${date}` },
+      { num: 2, title: "Agenda", content: "1. Introducción\n2. Problema y Justificación\n3. Objetivos del Proyecto\n4. Marco Teórico\n5. Metodología aplicada\n6. Resultados y Evidencias\n7. Conclusiones y Recomendaciones" },
+      { num: 3, title: "Introducción", content: `Contexto: ${context.intro.substring(0, 150)}...\nObjetivo de la propuesta: Modernizar el flujo tradicional incorporando automatización y métricas en la nube.` },
+      { num: 4, title: "Problema o Justificación", content: `Reto actual: Operaciones manuales ineficientes, altos tiempos de respuesta y nula recolección de datos históricos.\n\nJustificación: ${context.justificacion}` },
+      { num: 5, title: "Objetivos del Proyecto", content: `Objetivo General:\n- Desarrollar y evaluar ${context.desc}\n\nObjetivos Específicos:\n- Analizar tecnologías idóneas.\n- Diseñar hardware/software modular.\n- Evaluar prototipo funcional.` },
+      { num: 6, title: "Marco Teórico - Conceptos", content: `Bases conceptuales:\n- Automatización e integración en la nube.\n- Sistemas de bajo consumo.\n- Protocolos ligeros e interfaces seguras.` },
+      { num: 7, title: "Marco Teórico - Tecnologías", content: `Componentes clave:\n- Plataformas IaaS/PaaS.\n- Base de datos estructurada y en tiempo real.\n- Cifrado de datos en reposo y tránsito.` },
+      { num: 8, title: "Marco Teórico - Arquitectura", content: "Esquema del Sistema:\n[Cliente/Frontend] <--- HTTPS ---> [API Gateway / Servidor] <--- MQTT/TCP ---> [Dispositivos/Edge]" },
+      { num: 9, title: "Metodología - Enfoque", content: `Tipo: Investigación tecnológica experimental y desarrollo aplicado.\n\nFases:\n1. Análisis preliminar\n2. Diseño electrónico/lógico\n3. Construcción y Codificación` },
+      { num: 10, title: "Metodología - Herramientas", content: `Software y Hardware utilizados:\n- ${context.herramientas}\n- Microcontroladores de desarrollo y sensores calibrados.` },
+      { num: 11, title: "Metodología - Procedimiento", content: `${context.procedimiento}\nOptimización constante en cada iteración del ciclo.` },
+      { num: 12, title: "Metodología - Plan de Pruebas", content: "Plan de validación:\n- Pruebas unitarias de flujo lógico.\n- Pruebas de integración de datos.\n- Monitoreo de uso de recursos e integridad." },
+      { num: 13, title: "Resultados Obtenidos", content: `Métricas principales:\n- Eficiencia de recursos mejorada.\n- Tiempos de operación reducidos notablemente.\n- Registro automático de eventos en base de datos.` },
+      { num: 14, title: "Resultados - Comparativa", content: "Métrica | Antes (Manual) | Después (Sistema)\n----------------------------------------\nT. Operación | 45 min | 1.2 min\nTasa Fallos | 12.5% | 1.1%\nConsumo General | 100% | 65%" },
+      { num: 15, title: "Resultados - Evidencias", content: "Evidencia visual:\n- Capturas del dashboard interactivo.\n- Logs de conexión activa con cero desconexiones en 48 horas.\n- Gráficas de comportamiento de variables en tiempo real." },
+      { num: 16, title: "Conclusiones", content: `Logros principales:\n- ${context.conclusiones[0]}\n- ${context.conclusiones[1]}\n- Cumplimiento estricto de todos los objetivos propuestos.` },
+      { num: 17, title: "Recomendaciones", content: `Próximos Pasos:\n- ${context.recomendaciones[0]}\n- ${context.recomendaciones[1]}\n- Evaluar la incorporación de algoritmos predictivos locales.` },
+      { num: 18, title: "Preguntas", content: "Muchas gracias por su atención.\n\n¿Tiene alguna consulta o comentario sobre el proyecto?\n\nContacto: info@institucion.edu" }
+    ];
+
+    const researchSlides = [
+      { num: 1, title: "Portada", content: `Título: ${title}\nInvestigadores: ${authors.join(", ")}\nInstitución: ${institution}\nFecha: ${date}` },
+      { num: 2, title: "Resumen / Abstract", content: `Objetivo: Investigar e implementar ${context.desc}\nMetodología: Enfoque tecnológico aplicado y experimental.\nResultados clave: Optimización del consumo y reducción drástica de tiempos operativos.` },
+      { num: 3, title: "Introducción y Contexto", content: `Problema: Ineficiencias operacionales debidas a la intervención manual y ausencia de telemetría histórica.\n\nContexto: ${context.intro}` },
+      { num: 4, title: "Hipótesis y Objetivos", content: `Hipótesis: La introducción de un sistema automatizado basado en IoT o modelos predictivos aumentará la eficiencia global en al menos un 30%.\n\nObjetivo: Desarrollar y evaluar el prototipo modular.` },
+      { num: 5, title: "Metodología de Investigación", content: `Enfoque: Experimental e investigación tecnológica.\nVariables:\n- Variable Independiente: Sistema tecnológico automatizado.\n- Variable Dependiente: Eficiencia, estabilidad y tasa de error.` },
+      { num: 6, title: "Muestra y Recolección de Datos", content: `Muestra: 100 pruebas de control e instrumentación analítica.\nHerramientas:\n- ${context.herramientas}\n- Logs del sistema y almacenamiento de datos históricos.` },
+      { num: 7, title: "Análisis de Datos y Pruebas", content: `Método: Comparación estadística del rendimiento del sistema.\nFase A (Planificación) -> Concluida.\nFase B (Construcción) -> 95% de estabilidad general.` },
+      { num: 8, title: "Resultados del Estudio", content: `Resultados empíricos:\n- Optimización en ahorro de recursos: 32% (Meta: 30%).\n- Disponibilidad en pruebas: 99.8%.\n- Margen de error en telemetría: < 6.0%.` },
+      { num: 9, title: "Discusión de Hallazgos", content: "Discusión:\n- Los hallazgos validan empíricamente la hipótesis propuesta.\n- Los tiempos de operación (1.2 min vs 45 min) muestran una mejora estadísticamente relevante.\n- Retos futuros: Escalabilidad del backend." },
+      { num: 10, title: "Conclusiones de Investigación", content: `Conclusiones:\n1. La automatización propuesta es 100% viable.\n2. La hipótesis de eficiencia del 30% fue superada.\n3. Se recomienda la adopción del esquema para producción.` },
+      { num: 11, title: "Referencias Científicas", content: "Bibliografía de soporte:\n- Gómez & Pérez (2025). Monitoreo Inteligente.\n- Smith (2024). Sistemas Automatizados, Academic Press.\n- Johnson (2026). Seguridad en Redes." },
+      { num: 12, title: "Agradecimientos y Preguntas", content: "Agradecemos al departamento de investigación por facilitar el acceso a la infraestructura.\n\n¿Tiene alguna pregunta o sugerencia sobre nuestro estudio?\n\nContacto: info@institucion.edu" }
+    ];
+
     return {
       title,
       type: "presentation",
       members: authors.join(", "),
       institution,
       date,
-      slides: [
-        { num: 1, title: "Portada", content: `Título: ${title}\nIntegrantes: ${authors.join(", ")}\nInstitución: ${institution}\nFecha: ${date}` },
-        { num: 2, title: "Agenda", content: "1. Introducción\n2. Problema y Justificación\n3. Objetivos del Proyecto\n4. Marco Teórico\n5. Metodología aplicada\n6. Resultados y Evidencias\n7. Conclusiones y Recomendaciones" },
-        { num: 3, title: "Introducción", content: `Contexto: ${context.intro.substring(0, 150)}...\nObjetivo de la propuesta: Modernizar el flujo tradicional incorporando automatización y métricas en la nube.` },
-        { num: 4, title: "Problema o Justificación", content: `Reto actual: Operaciones manuales ineficientes, altos tiempos de respuesta y nula recolección de datos históricos.\n\nJustificación: ${context.justificacion}` },
-        { num: 5, title: "Objetivos del Proyecto", content: `Objetivo General:\n- Desarrollar y evaluar ${context.desc}\n\nObjetivos Específicos:\n- Analizar tecnologías idóneas.\n- Diseñar hardware/software modular.\n- Evaluar prototipo funcional.` },
-        { num: 6, title: "Marco Teórico - Conceptos", content: `Bases conceptuales:\n- Automatización e integración en la nube.\n- Sistemas de bajo consumo.\n- Protocolos ligeros e interfaces seguras.` },
-        { num: 7, title: "Marco Teórico - Tecnologías", content: `Componentes clave:\n- Plataformas IaaS/PaaS.\n- Base de datos estructurada y en tiempo real.\n- Cifrado de datos en reposo y tránsito.` },
-        { num: 8, title: "Marco Teórico - Arquitectura", content: "Esquema del Sistema:\n[Cliente/Frontend] <--- HTTPS ---> [API Gateway / Servidor] <--- MQTT/TCP ---> [Dispositivos/Edge]" },
-        { num: 9, title: "Metodología - Enfoque", content: `Tipo: Investigación tecnológica experimental y desarrollo aplicado.\n\nFases:\n1. Análisis preliminar\n2. Diseño electrónico/lógico\n3. Construcción y Codificación` },
-        { num: 10, title: "Metodología - Herramientas", content: `Software y Hardware utilizados:\n- ${context.herramientas}\n- Microcontroladores de desarrollo y sensores calibrados.` },
-        { num: 11, title: "Metodología - Procedimiento", content: `${context.procedimiento}\nOptimización constante en cada iteración del ciclo.` },
-        { num: 12, title: "Metodología - Plan de Pruebas", content: "Plan de validación:\n- Pruebas unitarias de flujo lógico.\n- Pruebas de integración de datos.\n- Monitoreo de uso de recursos e integridad." },
-        { num: 13, title: "Resultados Obtenidos", content: `Métricas principales:\n- Eficiencia de recursos mejorada.\n- Tiempos de operación reducidos notablemente.\n- Registro automático de eventos en base de datos.` },
-        { num: 14, title: "Resultados - Comparativa", content: "Métrica | Antes (Manual) | Después (Sistema)\n----------------------------------------\nT. Operación | 45 min | 1.2 min\nTasa Fallos | 12.5% | 1.1%\nConsumo General | 100% | 65%" },
-        { num: 15, title: "Resultados - Evidencias", content: "Evidencia visual:\n- Capturas del dashboard interactivo.\n- Logs de conexión activa con cero desconexiones en 48 horas.\n- Gráficas de comportamiento de variables en tiempo real." },
-        { num: 16, title: "Conclusiones", content: `Logros principales:\n- ${context.conclusiones[0]}\n- ${context.conclusiones[1]}\n- Cumplimiento estricto de todos los objetivos propuestos.` },
-        { num: 17, title: "Recomendaciones", content: `Próximos Pasos:\n- ${context.recomendaciones[0]}\n- ${context.recomendaciones[1]}\n- Evaluar la incorporación de algoritmos predictivos locales.` },
-        { num: 18, title: "Preguntas", content: "Muchas gracias por su atención.\n\n¿Tiene alguna consulta o comentario sobre el proyecto?\n\nContacto: info@institucion.edu" }
-      ]
+      slides: isInvestigacion ? researchSlides : reportSlides
     };
   }
 

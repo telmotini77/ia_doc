@@ -958,8 +958,8 @@ export function downloadPPTX(data, filename, paletteColors) {
   s1.addText("DocuGenius Neural AI Presentation System", textFooter);
 
   // Slides restantes
-  data.slides.forEach((slideData) => {
-    if (slideData.num === 1) return;
+  data.slides.forEach((slideData, idx) => {
+    if (idx === 0) return;
     
     let s = pptx.addSlide();
     

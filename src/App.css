@@ -3,11 +3,11 @@
    ========================================================================== */
 
 :root {
-  --bg-main: #0c0816;
-  --bg-sidebar: #0f0a1c;
-  --bg-workspace: #0c0816;
-  --bg-card: #150f26;
-  --bg-input: #1a1330;
+  --bg-main: #5d469a;
+  --bg-sidebar: #450bd7;
+  --bg-workspace: #5d469a;
+  --bg-card: #381890;
+  --bg-input: #1b113a;
   --bg-pill: #1f1738;
 
   --border-color: #2a1e45;
@@ -755,7 +755,8 @@ body {
 
 .pdf-page p {
   font-size: var(--page-font-size, 13.5px);
-  margin-bottom: 0 !important; /* Sin espacio entre párrafos como en la especificación */
+  margin-bottom: 0 !important;
+  /* Sin espacio entre párrafos como en la especificación */
   color: #383440;
   text-align: var(--page-text-align, justify);
   text-indent: var(--page-text-indent, 0cm);
@@ -763,14 +764,14 @@ body {
 }
 
 /* Headings, lists and cover contents should NOT be indented */
-.pdf-page h2, 
-.pdf-page h3, 
-.pdf-page h4, 
-.pdf-page ul, 
-.pdf-page ol, 
+.pdf-page h2,
+.pdf-page h3,
+.pdf-page h4,
+.pdf-page ul,
+.pdf-page ol,
 .pdf-page table,
-.cover-page p, 
-.cover-page h1, 
+.cover-page p,
+.cover-page h1,
 .cover-page span {
   text-indent: 0 !important;
 }
@@ -2154,7 +2155,7 @@ body {
 .sidebar-container {
   width: 320px;
   height: 100vh;
-  background: #110d1a;
+  background: #311c60;
   border-right: 1.5px solid rgba(170, 59, 255, 0.15);
   display: flex;
   flex-direction: column;
@@ -2719,4 +2720,74 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Estilos premium para el modo edición interactiva */
+.edit-textarea {
+  width: 100%;
+  min-height: 80px;
+  background: rgba(30, 20, 50, 0.4);
+  border: 1.5px solid rgba(170, 59, 255, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 150%;
+  resize: vertical;
+  outline: none;
+  transition: all 0.2s;
+  box-sizing: border-box;
+}
+.edit-textarea:focus {
+  border-color: #c084fc;
+  box-shadow: 0 0 8px rgba(170, 59, 255, 0.35);
+  background: rgba(30, 20, 50, 0.6);
+}
+
+.edit-input {
+  width: 100%;
+  background: rgba(30, 20, 50, 0.4);
+  border: 1.5px solid rgba(170, 59, 255, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+}
+.edit-input:focus {
+  border-color: #c084fc;
+  box-shadow: 0 0 8px rgba(170, 59, 255, 0.35);
+  background: rgba(30, 20, 50, 0.6);
+}
+
+.edit-grid-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  outline: none;
+  padding: 4px 6px;
+  text-align: inherit;
+  box-sizing: border-box;
+}
+.edit-grid-input:focus {
+  background: rgba(170, 59, 255, 0.15);
+  box-shadow: inset 0 0 0 1.5px #c084fc;
+  border-radius: 4px;
+}
+
+.edit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin: 6px 0;
 }

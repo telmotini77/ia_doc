@@ -27,6 +27,8 @@ export default function App() {
   const [docType, setDocType] = useState('report'); // 'report', 'presentation', 'spreadsheet', 'petition', 'response'
   const [loading, setLoading] = useState(false);
   const [generatedData, setGeneratedData] = useState(null);
+  const [modifyActive, setModifyActive] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
   
   // Machine Learning classifier state
@@ -78,7 +80,8 @@ export default function App() {
     margin: '2.54',
     spacing: '2.0',
     alignment: 'left',
-    indent: '1.27'
+    indent: '1.27',
+    reportType: 'tecnico'
   });
 
   // Train the Neural Network Classifier on mount
@@ -140,7 +143,11 @@ export default function App() {
     }
 
     setLoading(true);
-    setGeneratedData(null);
+    setIsEditing(false); // Reset edit mode on new generation
+    // Don't wipe generatedData if we are modifying it
+    if (!modifyActive) {
+      setGeneratedData(null);
+    }
     setPrediction(null);
     setActiveSlide(0);
     setActiveSheet('hoja1');
@@ -160,10 +167,19 @@ export default function App() {
       }
 
       const customMetadataObj = customMetadata ? { title, institution, authors, advisor } : {};
+      const activeDocContext = modifyActive && generatedData ? generatedData : null;
 
       if (aiMode === 'gemini' && geminiApiKey.trim()) {
         try {
-          data = await generateGeminiContent(prompt, docType, geminiApiKey, customMetadataObj, attachedFiles);
+          data = await generateGeminiContent(
+            prompt, 
+            docType, 
+            geminiApiKey, 
+            customMetadataObj, 
+            attachedFiles, 
+            reportFormat.reportType,
+            activeDocContext
+          );
           
           if (data) {
             // Apply fallbacks if properties are not fully mapped in Gemini response
@@ -176,18 +192,18 @@ export default function App() {
             }
           }
 
-          showToast("¡Documento estructurado por Gemini API con éxito!", "success");
+          showToast(activeDocContext ? "¡Documento modificado por Gemini API con éxito!" : "¡Documento estructurado por Gemini API con éxito!", "success");
         } catch (apiErr) {
           console.warn("Gemini API failed, falling back to local Neural AI model:", apiErr);
           showToast("Gemini API Key inválida o error en red. Usando motor local gratuito...", "info");
-          data = generateLocalContent(prompt, docType, pred);
+          data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext);
         }
       } else {
         if (aiMode === 'gemini') {
           showToast("Falta ingresar la Gemini API Key. Usando motor local gratuito...", "info");
         }
         // Local generator
-        data = generateLocalContent(prompt, docType, pred);
+        data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext);
       }
 
       // Override metadata fields if customMetadata is checked
@@ -319,6 +335,12 @@ export default function App() {
             aiMode={aiMode}
             attachedFiles={attachedFiles}
             setAttachedFiles={setAttachedFiles}
+            generatedData={generatedData}
+            setGeneratedData={setGeneratedData}
+            modifyActive={modifyActive}
+            setModifyActive={setModifyActive}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
           />
 
           <DocumentPreview
@@ -336,6 +358,9 @@ export default function App() {
             coverLogo={coverLogo}
             coverAlign={coverAlign}
             coverSizes={coverSizes}
+            isEditing={isEditing}
+            setIsEditing={setIsEditing}
+            setGeneratedData={setGeneratedData}
           />
         </main>
       </div>

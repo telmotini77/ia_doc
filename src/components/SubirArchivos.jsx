@@ -62,6 +62,12 @@ export default function SubirArchivos({
     const allowed = [];
     const rejected = [];
 
+    if (attachedFiles.length + fileList.length > 30) {
+      setMessageType('error');
+      setMessage(`No se pueden subir más de 30 archivos por consulta (actualmente tienes ${attachedFiles.length}).`);
+      return;
+    }
+
     Array.from(fileList).forEach((file) => {
       // Check for duplicate in local or global files
       const isDuplicate = localFiles.some(f => f.file.name === file.name && f.file.size === file.size) ||

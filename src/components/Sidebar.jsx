@@ -151,10 +151,23 @@ export default function Sidebar({
               <span className="section-label">Formato del Documento</span>
               {isFormatOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
-
             {isFormatOpen && (
               <div className="metadata-form-panel animate-slide-down">
                 <div className="meta-inputs-grid">
+                  <div className="meta-field">
+                    <label>Tipo de Informe / Estructura</label>
+                    <select
+                      value={reportFormat.reportType || 'tecnico'}
+                      onChange={(e) => handleFormatChange('reportType', e.target.value)}
+                      className="premium-select"
+                    >
+                      <option value="corto">Académico Corto (800 – 1,500 palabras)</option>
+                      <option value="universitario">Universitario Completo (5,000 – 8,000 palabras)</option>
+                      <option value="tecnico">Proyecto Técnico / IoT (8,000 – 15,000 palabras)</option>
+                      <option value="ieee">Artículo Científico IEEE (2,500 – 5,500 palabras)</option>
+                    </select>
+                  </div>
+
                   <div className="meta-field">
                     <label>Tamaño de Papel</label>
                     <select

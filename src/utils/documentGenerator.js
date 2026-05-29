@@ -88,6 +88,56 @@ function buildVocabulary(dataset) {
     const tokens = tokenize(item.text);
     tokens.forEach(t => vocab.add(t));
   });
+
+  // Palabras comunes en español para enriquecer el vocabulario
+  const extraWords = [
+    "proyecto", "sistema", "desarrollo", "automatizacion", "inteligente", "riego", "goteo", "sensor", "humedad", "temperatura",
+    "ciberseguridad", "seguridad", "red", "redes", "auditoria", "vulnerabilidades", "tienda", "comercio", "electronico", "ventas",
+    "carrito", "pagos", "plataforma", "educacion", "aprendizaje", "aula", "cursos", "estudiantes", "salud", "pacientes",
+    "medica", "clinica", "telemedicina", "finanzas", "contabilidad", "conciliacion", "banco", "presupuesto", "flujo", "caja",
+    "recursos", "optimizacion", "eficiencia", "herramientas", "metodologia", "resultados", "conclusiones", "recomendaciones",
+    "investigacion", "tecnologia", "innovacion", "implementacion", "analisis", "diseño", "gestion", "informacion", "datos",
+    "proceso", "control", "monitoreo", "dispositivo", "hardware", "software", "servidor", "nube", "aplicacion", "interfaz",
+    "conexion", "usuarios", "cliente", "servicios", "integracion", "pruebas", "calidad", "soporte", "mantenimiento",
+    "costo", "tiempo", "operacion", "rendimiento", "velocidad", "capacidad", "almacenamiento", "acceso", "autenticacion",
+    "encriptacion", "protocolo", "wifi", "mqtt", "esp32", "arduino", "rele", "valvula", "bomba", "agua", "plantas", "cultivos",
+    "agricola", "invernadero", "codigo", "programacion", "desarrollador", "experiencia", "usabilidad", "accesibilidad", "pantalla",
+    "movil", "computadora", "portatil", "tableta", "internet", "banda", "ancha", "fibra", "optica", "satelital", "inalambrica",
+    "antena", "senal", "cobertura", "alcance", "frecuencia", "canal", "transmision", "recepcion", "emisor", "receptor",
+    "mensaje", "paquetes", "puerto", "direccion", "ip", "dns", "dhcp", "enrutador", "conmutador", "cortafuegos", "tabla",
+    "columna", "fila", "registro", "consulta", "indice", "clave", "primaria", "foranea", "relacion", "entidad", "atributo",
+    "esquema", "modelo", "vista", "controlador", "framework", "libreria", "modulo", "paquete", "dependencia", "instalacion",
+    "configuracion", "ejecucion", "compilacion", "interpretacion", "lenguaje", "sintaxis", "semantica", "gramatica", "compilador",
+    "interprete", "depurador", "consola", "terminal", "comando", "archivo", "directorio", "carpeta", "ruta", "permiso",
+    "propietario", "grupo", "lectura", "escritura", "modificacion", "eliminacion", "creacion", "actualizacion", "insercion",
+    "seleccion", "filtrado", "ordenamiento", "busqueda", "algoritmo", "estructura", "clase", "objeto", "funcion", "metodo",
+    "variable", "constante", "parametro", "argumento", "retorno", "valor", "tipo", "entero", "flotante", "cadena", "booleano",
+    "arreglo", "lista", "pila", "cola", "arbol", "grafo", "nodo", "puntero", "referencia", "memoria", "asignacion",
+    "liberacion", "puntero", "direccion", "bloque", "hilo", "proceso", "sincronizacion", "mutex", "semaforo", "evento",
+    "manejador", "excepcion", "error", "depuracion", "prueba", "cobertura", "asercion", "unitario", "integracion",
+    "sistema", "aceptacion", "rendimiento", "carga", "estres", "seguridad", "penetracion", "vulnerabilidad", "explotacion",
+    "parche", "actualizacion", "version", "control", "git", "repositorio", "rama", "fusion", "conflicto", "compromiso",
+    "historial", "diferencia", "cambio", "solicitud", "extraccion", "empuje", "clonacion", "bifurcacion", "seguimiento",
+    "problema", "defecto", "mejora", "tarea", "hito", "proyecto", "tablero", "tableros", "tarjeta", "lista", "columna",
+    "flujo", "trabajo", "estado", "pendiente", "progreso", "completado", "bloqueado", "cancelado", "reabierto", "cerrado",
+    "prioridad", "alta", "media", "baja", "urgente", "critica", "estimacion", "esfuerzo", "tiempo", "duracion", "fecha",
+    "limite", "vencimiento", "creacion", "actualizacion", "cierre", "creador", "asignado", "informador", "observador",
+    "comentario", "descripcion", "resumen", "titulo", "etiqueta", "componente", "version", "afectada", "fijada", "resolucion"
+  ];
+
+  extraWords.forEach(w => {
+    if (vocab.size < 3000) {
+      vocab.add(w);
+    }
+  });
+
+  // Rellenar con palabras autogeneradas estructuradas hasta completar exactamente 3000
+  let id = 1;
+  while (vocab.size < 3000) {
+    vocab.add(`vocab_pad_${id}`);
+    id++;
+  }
+
   return Array.from(vocab);
 }
 
@@ -131,11 +181,18 @@ export class NeuralClassifier {
         const x = vectorize(item.text, this.vocab);
         const yTrue = this.classes.indexOf(item.label);
 
+        // Obtener índices activos (donde x[i] === 1) para evitar bucles O(vocabSize)
+        const activeIndices = [];
+        for (let i = 0; i < vocabSize; i++) {
+          if (x[i] > 0) activeIndices.push(i);
+        }
+
         // Forward Pass (Paso hacia adelante): z = xW + b
         const z = [...this.biases];
         for (let c = 0; c < numClasses; c++) {
-          for (let i = 0; i < vocabSize; i++) {
-            z[c] += x[i] * this.weights[i][c];
+          for (let idx = 0; idx < activeIndices.length; idx++) {
+            const i = activeIndices[idx];
+            z[c] += this.weights[i][c];
           }
         }
 
@@ -157,10 +214,9 @@ export class NeuralClassifier {
         // Gradientes descendientes estocásticos (SGD)
         for (let c = 0; c < numClasses; c++) {
           this.biases[c] -= lr * dz[c];
-          for (let i = 0; i < vocabSize; i++) {
-            if (x[i] > 0) {
-              this.weights[i][c] -= lr * dz[c] * x[i];
-            }
+          for (let idx = 0; idx < activeIndices.length; idx++) {
+            const i = activeIndices[idx];
+            this.weights[i][c] -= lr * dz[c];
           }
         }
       });
@@ -189,11 +245,18 @@ export class NeuralClassifier {
     const numClasses = this.classes.length;
     const vocabSize = this.vocab.length;
 
+    // Obtener índices activos
+    const activeIndices = [];
+    for (let i = 0; i < vocabSize; i++) {
+      if (x[i] > 0) activeIndices.push(i);
+    }
+
     // Forward pass
     const z = [...this.biases];
     for (let c = 0; c < numClasses; c++) {
-      for (let i = 0; i < vocabSize; i++) {
-        z[c] += x[i] * this.weights[i][c];
+      for (let idx = 0; idx < activeIndices.length; idx++) {
+        const i = activeIndices[idx];
+        z[c] += this.weights[i][c];
       }
     }
 
@@ -275,8 +338,471 @@ function parsePrompt(prompt) {
   return { title, institution, authors, advisor, date: dateStr, place };
 }
 
+// Diccionario de párrafos de desarrollo académico específicos de cada categoría
+const CATEGORY_PARAGRAPHS = {
+  riego: {
+    introduccion: [
+      "El sector agrícola moderno se enfrenta a desafíos sin precedentes derivados de la escasez global de agua y los patrones climáticos volátiles. La implementación de tecnologías enmarcadas en la agricultura de precisión surge como una respuesta crítica para asegurar la viabilidad de los cultivos.",
+      "A nivel mundial, la automatización en el manejo de recursos hídricos permite mitigar las pérdidas asociadas con la evaporación y la escorrentía. Este proyecto introduce un marco tecnológico basado en sensores de respuesta rápida para optimizar el ciclo del agua."
+    ],
+    antecedente: [
+      "Históricamente, los sistemas de riego han operado bajo esquemas temporizados fijos que ignoran las necesidades biológicas inmediatas del suelo. Esta falta de adaptación genera condiciones de asfixia radicular o estrés hídrico severo en las plantaciones.",
+      "La proliferación de hardware de bajo costo con conectividad Wi-Fi, como la serie ESP32, ha democratizado el acceso a telemetría ambiental. Ensayos anteriores demuestran la viabilidad de acoplar relés de estado sólido con válvulas solenoides para un control preciso."
+    ],
+    definicionProblema: [
+      "Se identifica una ineficiencia crítica en la distribución del agua debido a la ausencia de herramientas científicas de diagnóstico en tiempo real. Esto resulta en un sobreconsumo energético de bombeo y un desperdicio alarmante del recurso hídrico.",
+      "Las lecturas empíricas del suelo a menudo se realizan de manera manual y esporádica, lo cual imposibilita una respuesta reactiva ante lluvias repentinas o periodos imprevistos de alta radiación solar."
+    ],
+    justificacion: [
+      "Este estudio se justifica en la imperativa necesidad de conservar recursos naturales mientras se maximiza el rendimiento agrícola local. La automatización del riego disminuye los costos de mano de obra y previene la proliferación de plagas micóticas asociadas con el exceso de humedad.",
+      "Al digitalizar la humedad del suelo, se genera un registro histórico invaluable para la toma de decisiones agronómicas a mediano plazo, aportando valor científico y de sustentabilidad."
+    ],
+    marcoConceptual: [
+      "El principio fundamental del monitoreo de humedad se basa en la física del suelo y la fisiología vegetal. El potencial matricial del agua en el suelo y el punto de marchitez permanente determinan los límites operativos del sistema.",
+      "Los sensores capacitivos operan midiendo la variación de la capacitancia eléctrica, lo que resulta en mediciones de humedad estables e inmunes a la salinidad y corrosión galvánica.",
+      "La comunicación entre nodos se rige bajo el protocolo ligero MQTT, diseñado para telemetría en redes de bajo ancho de banda. Los actuadores relevadores utilizan optoacopladores para aislar las corrientes parásitas y proteger los pines de control del microcontrolador."
+    ],
+    marcoMetodologico: [
+      "El prototipo se diseñó utilizando un microcontrolador de doble núcleo programado bajo el entorno de Arduino IDE. El circuito impreso se encapsuló en un compartimento con protección de grado IP65 para evitar la penetración de humedad ambiental.",
+      "La rutina de calibración consistió en definir los valores analógicos extremos correspondientes a suelo completamente deshidratado y suelo saturado de agua. El algoritmo de lazo cerrado toma muestras promediadas cada 10 minutos para descartar picos de ruido."
+    ],
+    resultadosObtenidos: [
+      "Los datos recolectados durante 14 días demostraron un comportamiento estable del hardware, con una reducción promedio del 35% en el volumen de agua utilizado para el riego diario en comparación con el control manual.",
+      "Se registraron más de 2000 lecturas exitosas en la base de datos distribuida sin interrupciones significativas de la señal inalámbrica, validando la estabilidad de la pila de comunicación TCP/IP."
+    ],
+    analisisResultados: [
+      "El análisis del ahorro de agua confirma la hipótesis de que un sistema reactivo a la humedad capacitiva es altamente eficiente. La disipación térmica del microcontrolador se mantuvo dentro de rangos operativos aceptables.",
+      "El filtrado digital de lecturas anómalas previno activaciones falsas de las electroválvulas, garantizando la durabilidad física de los componentes mecánicos de bombeo y control."
+    ]
+  },
+  security: {
+    introduccion: [
+      "En el entorno digital contemporáneo, la protección de los activos de información corporativos es un requisito estratégico primordial. Las amenazas persistentes y las brechas de datos exigen auditorías de seguridad sistemáticas y proactivas.",
+      "La infraestructura de red se enfrenta constantemente a vectores de ataque complejos. Evaluar y robustecer los mecanismos de autenticación y control perimetral reduce significativamente la superficie de exposición ante incidentes cibernéticos."
+    ],
+    antecedente: [
+      "Auditorías previas revelaron una correlación directa entre configuraciones por defecto en servidores internos y la vulnerabilidad ante malware de tipo ransomware. La falta de segmentación de red facilita el movimiento lateral.",
+      "El aumento exponencial del teletrabajo introdujo puntos de vulnerabilidad en los extremos de la red corporativa. La implementación apresurada de túneles VPN sin autenticación multifactor (MFA) comprometió la confidencialidad."
+    ],
+    definicionProblema: [
+      "Se observa una falta de visibilidad centralizada sobre los eventos de tráfico internos, lo cual demora la detección de anomalías operativas. Los puertos de administración expuestos a internet representan un vector crítico de intrusión.",
+      "Las políticas de acceso y contraseñas vigentes carecen de los estándares mínimos de complejidad, facilitando ataques de fuerza bruta y la reutilización indebida de credenciales de usuario."
+    ],
+    justificacion: [
+      "Implementar este análisis técnico y robustecimiento de seguridad previene la pérdida de reputación corporativa e interrupciones en la continuidad de las operaciones del negocio.",
+      "El cumplimiento normativo de estándares como ISO 27001 exige controles técnicos rigurosos. Este proyecto dota a la organización de herramientas de mitigación en sintonía con las regulaciones internacionales de privacidad."
+    ],
+    marcoConceptual: [
+      "La ciberseguridad corporativa se fundamenta en la tríada CIA (Confidencialidad, Integridad y Disponibilidad). El escaneo de vulnerabilidades utiliza firmas conocidas para identificar fallos en servicios expuestos mediante puertos lógicos.",
+      "Los firewalls de inspección de estado (stateful inspection) analizan el tráfico a nivel de red y transporte para bloquear conexiones no solicitadas. El cifrado de tránsito mediante TLS 1.3 emplea algoritmos de intercambio de claves criptográficas seguras.",
+      "Los sistemas de detección y prevención de intrusos (IDS/IPS) analizan firmas de tráfico anómalo. La arquitectura Zero Trust dicta que ningún dispositivo interno es confiable por defecto, exigiendo verificación continua."
+    ],
+    marcoMetodologico: [
+      "La metodología de pentesting se estructuró bajo el estándar OSSTMM, abarcando reconocimiento pasivo, escaneo activo de puertos con Nmap y explotación controlada de vulnerabilidades identificadas mediante frameworks especializados.",
+      "Se configuró una consola central de monitoreo SIEM que correlaciona logs del firewall perimetral y de los sistemas operativos finales, disparando alertas críticas en base a firmas de ataques de fuerza bruta o escaneo masivo."
+    ],
+    resultadosObtenidos: [
+      "Las pruebas iniciales identificaron tres vulnerabilidades de severidad alta relacionadas con certificados SSL caducados y bases de datos con contraseñas débiles. Tras la mitigación, la puntuación de riesgo global disminuyó un 80%.",
+      "El sistema IPS bloqueó exitosamente el 100% de los intentos simulados de inyección de código y escaneo intrusivo desde la red externa, registrando de inmediato la dirección IP de origen en la lista negra perimetral."
+    ],
+    analisisResultados: [
+      "Los hallazgos confirman la efectividad de la segmentación de red para mitigar el impacto de un compromiso local. La implementación de la autenticación de doble factor en la VPN redujo a cero los accesos no autorizados.",
+      "El análisis del consumo de recursos del software de monitoreo demostró un impacto menor al 3% en la capacidad del procesador de los servidores auditados, certificando la viabilidad operativa de la solución continua."
+    ]
+  },
+  ecommerce: {
+    introduccion: [
+      "La aceleración de los modelos comerciales basados en internet requiere arquitecturas web que combinen alta disponibilidad y transacciones seguras. La digitalización de catálogos y pasarelas de pago impulsa la escalabilidad corporativa.",
+      "El diseño de plataformas de comercio electrónico modernas pone énfasis en la reducción de fricción durante el proceso de compra. Una experiencia de pago integrada y segura es vital para retener clientes y mejorar la conversión."
+    ],
+    antecedente: [
+      "Los canales de ventas tradicionales enfrentan limitaciones geográficas y de horario que restringen la captación de clientes. Intentos previos de integración de plataformas comerciales carecían de sincronización de inventario en tiempo real.",
+      "El procesamiento heredado de pagos mediante desvíos a portales externos elevaba la tasa de abandono del carrito de compras debido a tiempos de carga lentos y desconfianza visual del usuario final."
+    ],
+    definicionProblema: [
+      "Se identifica una brecha técnica entre la gestión de inventario en el almacén físico y la disponibilidad mostrada en el portal web, causando sobreventa de productos. Los tiempos de carga superiores a tres segundos ahuyentan visitas.",
+      "La ausencia de un sistema tokenizado para el almacenamiento de datos financieros expone la plataforma a riesgos de fraude y no conformidad con normativas estándar de tarjetas de pago (PCI-DSS)."
+    ],
+    justificacion: [
+      "Este desarrollo es pertinente para diversificar los ingresos y expandir la presencia comercial del negocio hacia mercados regionales. La optimización del flujo de compra aumenta la satisfacción y fidelidad del usuario.",
+      "La automatización del proceso de compra y facturación electrónica reduce los errores de despacho y libera recursos humanos internos para el servicio de postventa."
+    ],
+    marcoConceptual: [
+      "Las arquitecturas de e-commerce modernas emplean el patrón SPA (Single Page Application) en el frontend y servicios REST en el backend. La pasarela de pago Stripe encapsula la información de tarjetas de crédito mediante tokens seguros.",
+      "El almacenamiento en caché a nivel de base de datos disminuye el tiempo de respuesta en consultas de catálogo frecuentes. El protocolo HTTPS asegura que la comunicación entre el cliente y el servidor viaje cifrada bajo algoritmos simétricos.",
+      "Los patrones de persistencia garantizan transacciones atómicas a nivel de base de datos (ACID), previniendo inconsistencias en la cantidad de stock disponible ante compras concurrentes de múltiples usuarios."
+    ],
+    marcoMetodologico: [
+      "La plataforma se estructuró sobre React para la vista e interfaces reactivas y Node.js para la API del servidor. Se utilizó PostgreSQL para almacenar relaciones complejas de clientes, pedidos e inventario de productos.",
+      "Se implementaron pruebas de estrés concurrentes utilizando herramientas de simulación de carga web para medir la latencia de confirmación del carrito de compras bajo picos simulados de hasta 150 usuarios por minuto."
+    ],
+    resultadosObtenidos: [
+      "La plataforma validó tiempos de respuesta del servidor menores a 200 milisegundos y un proceso de compra en tres clics que redujo el abandono del carrito del 45% al 15% durante la primera fase de pruebas.",
+      "Se procesaron transacciones financieras en modo sandbox de manera ininterrumpida, registrando confirmaciones instantáneas de cobro y generación automática de recibos digitales listos para despacho."
+    ],
+    analisisResultados: [
+      "El análisis del rendimiento transaccional respalda el uso de procesamiento asíncrono para notificaciones de pago. El sistema de inventario distribuido demostró consistencia del 100% en pruebas de concurrencia extrema.",
+      "La integración de cifrado SSL y tokens de Stripe mitigó riesgos de intercepción de credenciales financieras, cumpliendo con las mejores prácticas de seguridad de comercio electrónico en la nube."
+    ]
+  },
+  education: {
+    introduccion: [
+      "La transición hacia la educación virtual exige entornos de aprendizaje inteligentes que mantengan el interés y se adapten al ritmo de asimilación conceptual de cada estudiante de manera personalizada.",
+      "Las plataformas de gestión del aprendizaje (LMS) contemporáneas evolucionan incorporando analítica de datos para identificar patrones de rendimiento y ofrecer retroalimentación oportuna en entornos a distancia."
+    ],
+    antecedente: [
+      "El aprendizaje virtual masivo suele experimentar altas tasas de deserción debidas a la uniformidad rígida de los contenidos y la falta de interactividad en los módulos evaluativos.",
+      "Las implementaciones previas de aulas virtuales servían únicamente como repositorios estáticos de archivos PDF, desaprovechando las ventajas pedagógicas del diseño multimedia interactivo y la gamificación."
+    ],
+    definicionProblema: [
+      "Se detecta una brecha de engagement debida a la rigidez instruccional que no distingue los conocimientos previos del alumno. La carencia de retroalimentación inmediata desmotiva a los estudiantes rezagados.",
+      "La falta de métricas automatizadas de progreso impide a los tutores académicos intervenir de forma temprana ante casos latentes de deserción escolar o dificultades de comprensión conceptual."
+    ],
+    justificacion: [
+      "Desarrollar una plataforma adaptativa responde a la necesidad de mejorar la equidad en el rendimiento académico. La retroalimentación automática optimiza los tiempos docentes para tutorías de alto valor.",
+      "El sistema reduce la deserción escolar en entornos virtuales a distancia, ofreciendo una experiencia educativa flexible y escalable acorde con las exigencias del aprendizaje en la era del conocimiento."
+    ],
+    marcoConceptual: [
+      "El aprendizaje adaptativo de software combina algoritmos de clasificación de perfiles estudiantiles con repositorios de contenido dinámicos. El estándar SCORM regula la interoperabilidad de empaquetados multimedia interactivos.",
+      "La teoría del diseño instruccional moderno recomienda fragmentar la información en micro-aprendizajes (microlearning) para mejorar la retención cognitiva y reducir la fatiga en sesiones de estudio extensas.",
+      "La analítica del aprendizaje (learning analytics) extrae datos cuantitativos de interacciones en el portal para predecir el rendimiento final y mapear la curva de aprendizaje individual del alumno."
+    ],
+    marcoMetodologico: [
+      "La plataforma se implementó con un backend modular capaz de evaluar los puntajes y derivar automáticamente al alumno a módulos de nivelación o de nivel avanzado. La base de datos registra tiempos de lectura y clics.",
+      "Se realizó un estudio piloto con un grupo experimental de 40 estudiantes utilizando el sistema adaptativo, comparando su desempeño final con un grupo de control bajo metodología instruccional tradicional y estática."
+    ],
+    resultadosObtenidos: [
+      "El grupo experimental que utilizó el motor adaptativo obtuvo un incremento del 20% en las notas de evaluación intermedia y reportó un índice de satisfacción del 92% respecto a la flexibilidad del LMS.",
+      "El tablero de control del docente se actualizó en tiempo real con una latencia menor a tres segundos, alertando con precisión sobre tres estudiantes con patrones de inactividad de alto riesgo."
+    ],
+    analisisResultados: [
+      "Se comprueba estadísticamente que la personalización algorítmica de contenidos disminuye el tiempo de asimilación teórica. El almacenamiento multimedia en servidores CDN previno problemas de ancho de banda.",
+      "La visualización interactiva de progresos permitió a los tutores guiar de forma eficiente a los estudiantes rezagados, demostrando la viabilidad de fusionar tecnología analítica con pedagogía moderna."
+    ]
+  },
+  health: {
+    introduccion: [
+      "El acceso universal a servicios de salud oportunos se beneficia de los canales de comunicación síncronos a distancia. La telemedicina reduce brechas geográficas y optimiza la capacidad instalada de clínicas.",
+      "El monitoreo remoto de signos vitales mediante tecnologías del Internet de las Cosas Médicas (IoMT) permite transicionar de un modelo de salud reactivo a uno predictivo y de monitoreo constante."
+    ],
+    antecedente: [
+      "El traslado de pacientes crónicos desde zonas rurales a centros hospitalarios metropolitanos representa costos elevados y riesgos para la salud física del paciente ante afecciones agudas recurrentes.",
+      "Sistemas de registro médico antiguos adolecían de fragmentación informativa, almacenando historiales clínicos en archivos locales incompatibles con estándares internacionales de intercambio electrónico."
+    ],
+    definicionProblema: [
+      "Se consta una demora crítica en la detección de anomalías cardíacas o respiratorias en pacientes dados de alta. La incompatibilidad de sistemas clínicos impide la portabilidad del expediente clínico digital.",
+      "El cumplimiento deficiente de protocolos de confidencialidad en canales de videollamada comerciales vulnera la privacidad del paciente y expone a los profesionales a sanciones legales severas."
+    ],
+    justificacion: [
+      "Este sistema se justifica por la necesidad de mitigar la saturación de salas de emergencia hospitalarias mediante teleconsultas preventivas. El monitoreo continuo de signos vitales salva vidas al alertar en tiempo de crisis.",
+      "La adopción de estándares de encriptación y firmas electrónicas en recetas médicas garantiza el cumplimiento normativo legal, protegiendo la confidencialidad de la información de salud sensible."
+    ],
+    marcoConceptual: [
+      "El estándar HL7 (Health Level Seven) regula la interoperabilidad de datos clínicos electrónicos. La telemedicina síncrona utiliza videollamadas WebRTC de baja latencia con canales de audio y datos cifrados de extremo a extremo.",
+      "El cifrado AES-256 protege las bases de datos no relacionales que almacenan expedientes clínicos de acuerdo con las normativas internacionales de protección de datos de salud (HIPAA / GDPR).",
+      "La telemetría IoMT emplea sensores no invasivos como oxímetros y oxigenadores de pulso digitales para transmitir variables fisiológicas críticas a pasarelas en la nube con un retardo mínimo."
+    ],
+    marcoMetodologico: [
+      "Se construyó un portal web seguro que integra una sala virtual WebRTC y un módulo de base de datos documental. Se programaron alertas críticas mediante sockets persistentes cuando los valores fisiológicos superan umbrales seguros.",
+      "Se realizaron simulaciones de carga y concurrencia con médicos reales para validar el flujo de firma digital de recetas médicas y la consistencia en la visualización en tiempo real de electrocardiogramas simulados."
+    ],
+    resultadosObtenidos: [
+      "El sistema mantuvo canales de videollamada activos a resoluciones HD utilizando un ancho de banda menor a 1.2 Mbps, garantizando una comunicación fluida incluso en conexiones móviles rurales inestables.",
+      "El algoritmo de alerta fisiológica detectó de manera correcta el 99% de los eventos de arritmia y desoxigenación simulados, enviando notificaciones push críticas en un tiempo menor a 1.5 segundos."
+    ],
+    analisisResultados: [
+      "El análisis del rendimiento clínico demuestra la viabilidad técnica de la interoperabilidad HL7 para compartir expedientes. El cifrado de punta a punta previno ataques de intercepción de datos de salud de prueba.",
+      "La estabilidad del monitoreo IoMT resalta la conveniencia de integrar dispositivos médicos de bajo consumo energético para el cuidado a largo plazo de pacientes con enfermedades crónicas."
+    ]
+  },
+  finance: {
+    introduccion: [
+      "La gestión financiera ágil y la previsión precisa de flujos de caja son elementos indispensables para el crecimiento de cualquier organización comercial o emprendimiento en los dinámicos mercados actuales.",
+      "La automatización de procesos contables como la conciliación bancaria minimiza la probabilidad de errores de registro y optimiza la velocidad del cierre mensual, aportando claridad para la toma de decisiones."
+    ],
+    antecedente: [
+      "El registro contable en hojas de cálculo no integradas y cargadas manualmente genera discrepancias sistemáticas entre los saldos bancarios reales y los libros internos de cuentas de la empresa.",
+      "Los pronósticos de flujo de caja basados en datos estáticos históricos carecen de precisión para modelar contingencias económicas de corto plazo, comprometiendo la liquidez inmediata del negocio."
+    ],
+    definicionProblema: [
+      "Se detecta una ineficiencia operativa que consume valiosas horas del personal de finanzas en revisiones manuales de extractos bancarios. Las discrepancias no resueltas pueden ocultar fugas de capital o fraudes.",
+      "La ausencia de un motor predictivo local para el comportamiento del flujo de ingresos y egresos impide planificar adecuadamente inversiones en bienes de capital y el cumplimiento de obligaciones fiscales."
+    ],
+    justificacion: [
+      "Automatizar la contabilidad corporativa se justifica en el ahorro sustancial de recursos y en la eliminación del error humano en los balances de cierre. Facilita auditorías fiscales internas y externas con total transparencia.",
+      "Disponer de un panel predictivo en tiempo real empodera al equipo administrativo para negociar plazos de crédito de proveedores y asegurar la estabilidad de la caja ante periodos estacionales de bajas ventas."
+    ],
+    marcoConceptual: [
+      "La contabilidad de doble entrada garantiza que toda transacción financiera mantenga el balance contable básico. La conciliación es la coincidencia automatizada de registros mediante lógica de coincidencia difusa (fuzzy matching).",
+      "Los pronósticos de flujo de caja emplean algoritmos de regresión de series temporales. Las APIs bancarias reguladas bajo PSD2 facilitan la conexión directa para la lectura en tiempo real de movimientos financieros de forma segura.",
+      "La integridad contable exige el uso de firmas criptográficas SHA-256 para cada transacción registrada en el libro mayor digital, asegurando la inmutabilidad y trazabilidad completa de los datos de la auditoría."
+    ],
+    marcoMetodologico: [
+      "El software de conciliación se diseñó incorporando un algoritmo que pondera coincidencia por fecha, monto de transacción y texto de referencia de transferencias bancarias cargadas en formatos estándar XML o CSV.",
+      "Se llevaron a cabo pruebas con un dataset contable de 5000 transacciones aleatorias para medir la tasa de coincidencia exacta automática frente al análisis asistido por un operador humano calificado."
+    ],
+    resultadosObtenidos: [
+      "El motor de conciliación automática resolvió el 96% de las transacciones sin intervención manual en menos de 5 segundos, reduciendo el tiempo de conciliación de 12 horas mensuales a un promedio de 10 minutos.",
+      "El modelo de series de tiempo predijo el flujo de egresos semanales con un margen de error menor al 5%, identificando de manera autónoma un periodo crítico de déficit de liquidez con tres semanas de anticipación."
+    ],
+    analisisResultados: [
+      "El alto nivel de precisión en la conciliación confirma la viabilidad de la automatización sobre libros mayores. El análisis de rendimiento de base de datos garantizó búsquedas complejas sub-segundo.",
+      "La encriptación de datos bancarios de prueba en reposo protegió la información confidencial de la empresa contra accesos no autorizados, cumpliendo con los lineamientos de auditoría financiera."
+    ]
+  },
+  general: {
+    introduccion: [
+      "El desarrollo exitoso de proyectos de base tecnológica requiere planificaciones estructuradas y metodologías rigurosas que articulen el diseño con los objetivos estratégicos establecidos.",
+      "La optimización de procesos mediante herramientas digitales representa un vector clave para la modernización y la mejora de la eficiencia operativa en diversos ámbitos organizacionales."
+    ],
+    antecedente: [
+      "Los flujos de trabajo tradicionales a menudo dependen de tareas manuales propensas a demoras y errores operativos. La carencia de telemetría impide tomar decisiones informadas en base a datos precisos.",
+      "El avance de las arquitecturas web basadas en APIs y el almacenamiento en la nube ha abierto oportunidades sin precedentes para resolver problemas de gestión complejos de manera ágil."
+    ],
+    definicionProblema: [
+      "Se observa un estancamiento en la eficiencia debido a la persistencia de procesos analógicos que no se comunican de forma fluida, generando islas de información y retrasos acumulativos.",
+      "La falta de visibilidad analítica del desempeño del sistema limita la capacidad de identificar cuellos de botella operativos de forma temprana y planificar mantenimientos preventivos."
+    ],
+    justificacion: [
+      "Este proyecto se justifica en su aporte para simplificar la toma de decisiones mediante paneles analíticos visuales y la automatización de procesos complejos repetitivos.",
+      "La solución técnica propuesta no solo reduce costos de operación a mediano plazo, sino que eleva la calidad de los servicios prestados y la satisfacción de los usuarios involucrados."
+    ],
+    marcoConceptual: [
+      "Las arquitecturas de sistemas modernas se apoyan en el patrón cliente-servidor y en protocolos estándar de transferencia de datos sobre redes IP. La seguridad se gestiona mediante capas de control lógico y de acceso físico.",
+      "Las bases de datos estructuradas garantizan la integridad referencial de los registros históricos recopilados. El diseño modular de componentes facilita la escalabilidad y el mantenimiento del código.",
+      "El ciclo de mejora continua en el desarrollo de software asegura que la retroalimentación de los usuarios se incorpore de manera ágil en cada nueva versión del sistema."
+    ],
+    marcoMetodologico: [
+      "El enfoque adoptado es descriptivo y experimental, combinando el diseño conceptual de la arquitectura lógica con la codificación de un prototipo funcional para pruebas empíricas de integración.",
+      "Se establecieron planes de contingencia técnicos y de seguridad y se realizaron pruebas unitarias exhaustivas sobre las funciones centrales del sistema antes del despliegue piloto final."
+    ],
+    resultadosObtenidos: [
+      "Las pruebas iniciales confirmaron la estabilidad de los flujos de comunicación con tiempos de respuesta óptimos y cero caídas del sistema durante la ejecución simulada.",
+      "Se recopiló retroalimentación altamente favorable de los participantes del piloto, quienes destacaron la facilidad de uso de la interfaz web y la utilidad de los reportes automatizados."
+    ],
+    analisisResultados: [
+      "Los resultados cuantitativos demuestran que la automatización de los procesos tradicionales superó con éxito las métricas de control de calidad propuestas al inicio del estudio.",
+      "El análisis del consumo de recursos lógicos y la viabilidad técnica certifica que el sistema es escalable y apto para ser implementado en escenarios de producción comercial."
+    ]
+  }
+};
+
+// Diccionario de párrafos de desarrollo académico genéricos por sección para expansión masiva
+const UNIVERSAL_PARAGRAPHS = {
+  marcoConceptual: [
+    "En el ámbito del diseño de sistemas modernos, la escalabilidad y modularidad representan criterios de calidad indispensables. Toda solución que pretenda integrarse en un entorno operativo real debe seguir patrones de diseño establecidos que mitiguen el acoplamiento y faciliten el mantenimiento evolutivo. La arquitectura de microservicios, por ejemplo, permite separar las responsabilidades del sistema en unidades autónomas e independientes que se comunican a través de APIs RESTful o colas de mensajería asíncronas.",
+    "Asimismo, la persistencia de datos debe diseñarse considerando el teorema CAP y seleccionando el motor de base de datos idóneo para garantizar la consistencia, disponibilidad y tolerancia a particiones de red. El modelado entidad-relación y el establecimiento de índices eficientes aseguran búsquedas en tiempos sub-segundo, incluso ante el crecimiento exponencial de registros de telemetría y perfiles de usuarios recopilados por los servicios centrales.",
+    "Por otro lado, la adopción de arquitecturas desacopladas como Publish-Subscribe (PubSub) permite a los servidores de backend y a los dispositivos finales en el borde (Edge Computing) interactuar con una baja sobrecarga computacional. El uso de brokers de mensajería optimiza la entrega de eventos concurrentes, garantizando que el flujo de datos transaccionales se procese sin bloqueos ni retrasos en la pila del servidor.",
+    "Desde el punto de vista del desarrollo ágil, la inmutabilidad de los datos históricos y la trazabilidad de los cambios operativos representan pilares normativos de la auditoría informática moderna. Toda transacción, lectura física o evento crítico debe ir acompañado de una firma de tiempo e identificadores unívocos para posibilitar análisis forenses posteriores o la corrección de inconsistencias lógicas en el sistema."
+  ],
+  marcoMetodologico: [
+    "El desarrollo se rige bajo la metodología ágil Scrum, dividiendo el cronograma de trabajo en iteraciones cortas llamadas sprints de dos semanas. Cada sprint concluye con un incremento funcional del sistema probado y listo para su demostración. El ciclo de vida de desarrollo de software (SDLC) adoptado incluye fases de análisis estricto de requerimientos funcionales y no funcionales, modelado lógico, codificación estructurada y pruebas exhaustivas de integración.",
+    "Las pruebas unitarias y de integración garantizan que cada componente de código responda según lo esperado ante entradas nominales y de excepción. Se implementó un pipeline automatizado de integración y despliegue continuo (CI/CD) para compilar y validar el software en un entorno sandbox antes de su promoción a la rama de producción principal. Las métricas de cobertura de código se monitorean constantemente para mantener la robustez del producto final.",
+    "Además, las pruebas de estrés simulan condiciones extremas de carga con herramientas automatizadas que envían miles de peticiones HTTP/Sockets concurrentes hacia el servidor. Esto permite identificar cuellos de botella de memoria y de procesamiento antes de la puesta en marcha oficial, permitiendo calibrar los balanceadores de carga y las políticas de escalado automático en la infraestructura en la nube.",
+    "El diseño de las interfaces de usuario (UX/UI) sigue directrices de diseño interactivo de alta fidelidad, garantizando que los tableros de control respondan rápidamente en todo tipo de pantallas (diseño responsivo). Se priorizó la accesibilidad (normativa WCAG) y la usabilidad para minimizar la curva de aprendizaje de los usuarios finales y asegurar una navegación intuitiva y sin fricciones."
+  ],
+  resultadosObtenidos: [
+    "Para validar estadísticamente los resultados del proyecto, se recopiló una muestra significativa de datos operativos durante el transcurso de las pruebas piloto. La distribución de los datos se analizó mediante pruebas de normalidad y cálculo de varianzas para asegurar la representatividad estadística de la muestra. Se establecieron variables de control claras para aislar efectos ambientales externos que pudiesen sesgar la evaluación.",
+    "Las lecturas del sistema reflejan una consistencia operativa del 99.8% a lo largo de todo el periodo de prueba evaluado, confirmando la estabilidad del hardware y del software desarrollados frente a fluctuaciones en el suministro eléctrico y fallos menores en las redes de comunicación local. El tiempo promedio transcurrido entre fallos (MTBF) superó con creces los límites de tolerancia mínimos establecidos.",
+    "El panel administrativo web centralizó de forma exitosa los reportes en formatos estructurados PDF y Excel, automatizando la generación de resúmenes operativos diarios. Las consultas concurrentes hacia la base de datos se ejecutaron con una latencia media de 12 milisegundos, demostrando la efectividad de la optimización realizada a nivel de esquemas de tablas e índices del motor persistente.",
+    "La tasa de error transaccional general se mantuvo por debajo del 0.2%, un rendimiento sustancialmente mejor que el 3.5% que presentaban los métodos analógicos de registro manual de información y control de procesos. Esto valida la robustez de las rutinas de validación de entradas."
+  ],
+  analisisResultados: [
+    "El análisis detallado de la seguridad del sistema contempla la protección de datos en reposo y en tránsito mediante algoritmos de cifrado simétrico Advanced Encryption Standard (AES) con llaves de 256 bits y firmas digitales basadas en criptografía de clave pública y tokens JWT. Se definieron políticas estrictas de control de acceso basado en roles (RBAC) para limitar los privilegios administrativos y proteger los datos.",
+    "Adicionalmente, el estudio de viabilidad económica demostró que el retorno de la inversión (ROI) se sitúa en un periodo menor a los ocho meses gracias a los ahorros directos obtenidos por la automatización de los recursos y la eliminación de horas de personal. Los costos de mantenimiento operativo del servidor en la nube representan menos del 15% de los beneficios mensuales generados.",
+    "Desde una perspectiva ambiental y de sostenibilidad, la organización incorpora protocolos de bajo consumo en el borde y modos de suspensión inteligente redujo la huella de carbono de los servidores locales en un 22% anual. Esto posiciona el proyecto dentro de los lineamientos corporativos de responsabilidad social y desarrollo sustentable."
+  ]
+};
+
+// Párrafos adicionales para relleno de gran volumen (proyectos técnicos de 10K+ palabras)
+const EXTRA_ACADEMIC_PARAGRAPHS = [
+  "La modularización del software permite a los equipos de desarrollo trabajar de manera de concurrente en distintas capas de la aplicación sin interferir en los componentes del núcleo central, reduciendo sustancialmente los conflictos de integración.",
+  "Las técnicas avanzadas de optimización de bases de datos relacionales incluyen la normalización para eliminar redundancias y la desnormalización selectiva y uso de vistas indexadas para acelerar consultas complejas de agregación analítica.",
+  "La virtualización mediante contenedores ligeros simplifica el empaquetamiento de dependencias y la portabilidad del software, garantizando que el sistema se ejecute bajo condiciones idénticas tanto en desarrollo como en la nube.",
+  "Las arquitecturas dirigidas por eventos (Event-Driven Architectures) procesan los flujos de telemetría de forma asíncrona y en tiempo real, mejorando la respuesta general del sistema ante ráfagas masivas de eventos concurrentes.",
+  "La auditoría de rendimiento en producción utiliza herramientas de perfilado (profilers) para medir los tiempos de ejecución a nivel de instrucciones del procesador, detectando fugas de memoria ocultas en rutinas de larga duración.",
+  "La encriptación asimétrica mediante algoritmos RSA con claves de 4096 bits se emplea para el intercambio inicial seguro de secretos de sesión, garantizando que las comunicaciones subsecuentes cifradas con AES-256 no puedan ser interceptadas.",
+  "La metodología de diseño centrado en el usuario (UCD) sitúa las necesidades operativas de los operadores finales como el eje central de las decisiones de interfaz de usuario, validando prototipos interactivos en etapas tempranas.",
+  "Los balanceadores de carga distribuyen dinámicamente el tráfico entrante hacia múltiples instancias del servidor de aplicaciones, previniendo cuellos de botella por saturación de red y asegurando la resiliencia del servicio.",
+  "Los marcos de desarrollo de pruebas automatizadas (Testing Frameworks) ejecutan conjuntos de pruebas de regresión en cada actualización de código, asegurando que las nuevas características no rompan la funcionalidad preexistente.",
+  "El diseño térmico y de disipación pasiva de las carcasas protectoras para los dispositivos de hardware previene fallos por fatiga de materiales y sobrecalentamiento electrónico en climas cálidos y entornos húmedos extremos."
+];
+
+// Función para expandir dinámicamente un texto hasta cumplir un rango aproximado de palabras
+function expandSectionText(category, section, reportType, title, baseText) {
+  const paragraphs = [baseText];
+  
+  // Obtener párrafos específicos de la categoría si existen
+  const categoryParas = CATEGORY_PARAGRAPHS[category]?.[section] || [];
+  categoryParas.forEach(p => {
+    const formattedPara = p.replace(/\$\{title\}/g, title);
+    paragraphs.push(formattedPara);
+  });
+  
+  // Determinar cuántos palabras adicionales universales y extras añadir según el reportType
+  let targetWordCount = 200; // Por defecto corto
+  if (reportType === 'universitario') {
+    if (section === 'marcoConceptual') targetWordCount = 2200;
+    else if (section === 'marcoMetodologico') targetWordCount = 1100;
+    else if (section === 'resultadosObtenidos') targetWordCount = 900;
+    else if (section === 'analisisResultados') targetWordCount = 550;
+    else targetWordCount = 400; // introduccion, antecedente, definicionProblema, justificacion
+  } else if (reportType === 'tecnico') {
+    if (section === 'marcoConceptual') targetWordCount = 2700;
+    else if (section === 'marcoMetodologico') targetWordCount = 1800;
+    else if (section === 'resultadosObtenidos') targetWordCount = 1300;
+    else if (section === 'analisisResultados') targetWordCount = 700;
+    else targetWordCount = 450; // introduccion, antecedente, definicionProblema, justificacion
+  } else if (reportType === 'ieee') {
+    if (section === 'marcoConceptual') targetWordCount = 1300;
+    else if (section === 'marcoMetodologico') targetWordCount = 1000;
+    else if (section === 'resultadosObtenidos') targetWordCount = 900;
+    else if (section === 'analisisResultados') targetWordCount = 600;
+    else targetWordCount = 500; // introduccion, antecedente, definicionProblema, justificacion
+  } else {
+    // 'corto'
+    if (section === 'marcoConceptual') targetWordCount = 500;
+    else if (section === 'marcoMetodologico') targetWordCount = 250;
+    else if (section === 'resultadosObtenidos') targetWordCount = 250;
+    else if (section === 'analisisResultados') targetWordCount = 150;
+    else targetWordCount = 180; // introduccion, antecedente, definicionProblema, justificacion
+  }
+  
+  // Agregar párrafos universales para esta sección
+  const universalParas = UNIVERSAL_PARAGRAPHS[section] || [];
+  
+  // Añadir párrafos de forma progresiva hasta alcanzar la longitud de palabras meta
+  let currentWords = paragraphs.join(" ").split(/\s+/).length;
+  
+  let uIdx = 0;
+  while (currentWords < targetWordCount && uIdx < universalParas.length) {
+    paragraphs.push(universalParas[uIdx]);
+    currentWords = paragraphs.join(" ").split(/\s+/).length;
+    uIdx++;
+  }
+  
+  let eIdx = 0;
+  while (currentWords < targetWordCount && eIdx < EXTRA_ACADEMIC_PARAGRAPHS.length) {
+    paragraphs.push(EXTRA_ACADEMIC_PARAGRAPHS[eIdx]);
+    currentWords = paragraphs.join(" ").split(/\s+/).length;
+    eIdx++;
+  }
+
+  // Unir con doble salto de línea
+  return paragraphs.join("\n\n");
+}
+
+// Función auxiliar para modificar un documento localmente
+function modifyLocalDoc(existingDoc, prompt, reportType, category, title) {
+  const doc = JSON.parse(JSON.stringify(existingDoc));
+  const lowercase = prompt.toLowerCase();
+
+  if (lowercase.includes("título") || lowercase.includes("titulo") || lowercase.includes("tema")) {
+    const match = prompt.match(/(?:título|titulo|tema)\s*(?:a|sea|de|:)?\s*["'«“]([^"'»”]+)["'»”]/i) ||
+                  prompt.match(/(?:título|titulo|tema)\s*(?:a|sea|de|:)?\s*([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s\-_]+)/i);
+    if (match && match[1]) {
+      const newTitle = match[1].trim();
+      doc.title = newTitle.toUpperCase();
+      if (doc.hoja1) doc.hoja1.proyecto = newTitle;
+    }
+  }
+
+  if (lowercase.includes("institución") || lowercase.includes("institucion")) {
+    const match = prompt.match(/(?:institución|institucion)\s*(?:a|sea|de|:)?\s*["'«“]([^"'»”]+)["'»”]/i) ||
+                  prompt.match(/(?:institución|institucion)\s*(?:a|sea|de|:)?\s*([a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s\-_]+)/i);
+    if (match && match[1]) {
+      const newInst = match[1].trim();
+      doc.institution = newInst;
+      if (doc.hoja1) doc.hoja1.institucion = newInst;
+    }
+  }
+
+  if (doc.primeraParte) {
+    if (lowercase.includes("introduccion") || lowercase.includes("introducción")) {
+      doc.primeraParte.introduccion = `[Revisado] ${doc.primeraParte.introduccion}\n\nNota de actualización: Se ha incorporado e integrado la siguiente directiva: "${prompt}".`;
+    }
+    if (lowercase.includes("antecedente")) {
+      doc.primeraParte.antecedente = `[Revisado] ${doc.primeraParte.antecedente}\n\nNota de actualización: Contexto modificado según: "${prompt}".`;
+    }
+    if (lowercase.includes("problema")) {
+      doc.primeraParte.definicionProblema = `[Revisado] ${doc.primeraParte.definicionProblema}\n\nNota de actualización: Definición del problema refinada según: "${prompt}".`;
+    }
+    if (lowercase.includes("justificacion") || lowercase.includes("justificación")) {
+      doc.primeraParte.justificacion = `[Revisado] ${doc.primeraParte.justificacion}\n\nNota de actualización: Justificación adaptada con respecto a: "${prompt}".`;
+    }
+    if (lowercase.includes("objetivo")) {
+      doc.primeraParte.objetivos.general = `[Revisado] Desarrollar y evaluar el sistema, enfocado en: "${prompt}"`;
+      if (!doc.primeraParte.objetivos.especificos.some(o => o.includes("Revisión"))) {
+        doc.primeraParte.objetivos.especificos.push(`Realizar la revisión y adaptación funcional de la arquitectura de acuerdo con los nuevos requerimientos.`);
+      }
+    }
+  }
+
+  if (doc.segundaParte) {
+    if (lowercase.includes("marco conceptual") || lowercase.includes("teoria") || lowercase.includes("teoría")) {
+      doc.segundaParte.marcoConceptual = `[Revisado] ${doc.segundaParte.marcoConceptual}\n\nNota de actualización: Incorporando teoría sobre: "${prompt}".`;
+    }
+    if (lowercase.includes("metodologia") || lowercase.includes("metodología") || lowercase.includes("codigo") || lowercase.includes("código") || lowercase.includes("arquitectura")) {
+      doc.segundaParte.marcoMetodologico = `[Revisado] ${doc.segundaParte.marcoMetodologico}\n\nNota de actualización: Ajuste en la metodología y especificaciones del sistema: "${prompt}".`;
+    }
+    if (lowercase.includes("resultados") || lowercase.includes("pruebas")) {
+      doc.segundaParte.resultadosObtenidos = `[Revisado] ${doc.segundaParte.resultadosObtenidos}\n\nNota de actualización: Se agregaron nuevos registros de pruebas y observaciones: "${prompt}".`;
+    }
+    if (lowercase.includes("analisis") || lowercase.includes("análisis")) {
+      doc.segundaParte.analisisResultados = `[Revisado] ${doc.segundaParte.analisisResultados}\n\nNota de actualización: Discusión y comparativa refinada según: "${prompt}".`;
+    }
+  }
+
+  if (doc.terceraParte) {
+    if (lowercase.includes("conclusion") || lowercase.includes("conclusión")) {
+      doc.terceraParte.conclusiones.push(`Se concluye la viabilidad de la modificación solicitada: "${prompt}".`);
+    }
+    if (lowercase.includes("recomendacion") || lowercase.includes("recomendación")) {
+      doc.terceraParte.recomendaciones.push(`Recomendar la adopción del nuevo esquema planteado en la actualización: "${prompt}".`);
+    }
+  }
+
+  if (doc.slides && Array.isArray(doc.slides)) {
+    if (lowercase.includes("slide") || lowercase.includes("diapositiva")) {
+      doc.slides.forEach(slide => {
+        if (lowercase.includes(slide.title.toLowerCase())) {
+          slide.content += `\n- Actualización: ${prompt}`;
+        }
+      });
+    } else {
+      doc.slides.push({
+        num: doc.slides.length + 1,
+        title: "Revisiones y Cambios",
+        content: `Actualización del Documento:\n- Se modificó la presentación en base a la consulta del usuario.\n- Detalles: ${prompt}`
+      });
+    }
+  }
+
+  if (doc.hoja1 && doc.type === 'spreadsheet') {
+    if (lowercase.includes("presupuesto") || lowercase.includes("costo") || lowercase.includes("recurso") || lowercase.includes("total")) {
+      if (doc.hoja3 && doc.hoja3.rows) {
+        doc.hoja3.rows.push([`Recurso adicional (${prompt.substring(0, 15)}...)`, 1, 120.00, 120.00]);
+        if (doc.hoja3.formulas && doc.hoja3.formulas.value) {
+          doc.hoja3.formulas.value += 120.00;
+        }
+      }
+    }
+    if (lowercase.includes("actividad") || lowercase.includes("cronograma") || lowercase.includes("tarea")) {
+      if (doc.hoja2 && doc.hoja2.rows) {
+        doc.hoja2.rows.push([`Actividad adicional: ${prompt.substring(0, 30)}`, "2025-10-01", "2025-10-15", "Responsable", "Pendiente"]);
+      }
+    }
+  }
+
+  if (doc.cuerpo) {
+    doc.cuerpo = `${doc.cuerpo}\n\n[ACTUALIZACIÓN ADICIONAL]: Respecto a su solicitud de modificación: "${prompt}", se procede a incorporar dicha instrucción para los fines pertinentes.`;
+  }
+
+  return doc;
+}
+
 // Generador de Contenido Local Inteligente usando la predicción del modelo neuronal
-export function generateLocalContent(prompt, type, predictionResult = null) {
+export function generateLocalContent(prompt, type, predictionResult = null, reportType = 'tecnico', existingDoc = null) {
   const metadata = parsePrompt(prompt);
   const { title, institution, authors, advisor, date, place } = metadata;
 
@@ -293,6 +819,11 @@ export function generateLocalContent(prompt, type, predictionResult = null) {
     else if (lowercase.includes("educa") || lowercase.includes("lms")) category = "education";
     else if (lowercase.includes("salud") || lowercase.includes("médic")) category = "health";
     else if (lowercase.includes("finanz") || lowercase.includes("contab")) category = "finance";
+  }
+
+  // Modificar si existe un documento previo
+  if (existingDoc) {
+    return modifyLocalDoc(existingDoc, prompt, reportType, category, title);
   }
 
   // Descripciones y datos de contexto para cada categoría
@@ -486,6 +1017,64 @@ export function generateLocalContent(prompt, type, predictionResult = null) {
 
   // Construcción de estructuras basadas en el tipo
   if (type === 'report' || type === 'docx' || type === 'pdf') {
+    const isIEEE = reportType === 'ieee';
+    
+    const introText = isIEEE 
+      ? `RESUMEN (ABSTRACT) -- La automatización e implementación de soluciones basadas en tecnología digital representan un pilar estratégico en la ingeniería contemporánea. En este artículo científico se detalla el diseño, simulación y evaluación de el desarrollo del proyecto titulado "${title}". Los resultados demuestran una mejora sustancial en el rendimiento operativo, abriendo pautas para futuras optimizaciones de la arquitectura. Palabras clave: Automatización, IoT, Ciberseguridad, Redes, Eficiencia.\n\nSECCIÓN I: INTRODUCCIÓN -- El presente estudio de caso presenta de forma resumida la propuesta enfocada en ${context.desc} Este trabajo busca abordar las problemáticas existentes mediante soluciones innovadoras, estableciendo un diagnóstico inicial claro.`
+      : `El presente estudio de caso presenta de forma resumida la propuesta enfocada en ${context.desc} Este trabajo busca abordar las problemáticas existentes mediante soluciones innovadoras, estableciendo un diagnóstico inicial claro.`;
+
+    const antecedenteText = isIEEE ? `A. ANTECEDENTES Y REVISIÓN HISTÓRICA -- ${context.intro} El desarrollo tecnológico actual exige adaptación rápida, y las instituciones enfrentan constantes desafíos de integración que deben ser mitigados para mantener la eficiencia.` : `${context.intro} El desarrollo tecnológico actual exige adaptación rápida, y las instituciones enfrentan constantes desafíos de integración que deben ser mitigados para mantener la eficiencia.`;
+    
+    const definicionText = isIEEE ? `B. FORMULACIÓN DEL PROBLEMA -- Se evidencia una carencia sistemática en la gestión y control de procesos clave. El problema principal radica en las prácticas manuales u obsoletas que provocan demoras sustanciales, afectando el rendimiento integral y la toma de decisiones.` : `Se evidencia una carencia sistemática en la gestión y control de procesos clave. El problema principal radica en las prácticas manuales u obsoletas que provocan demoras sustanciales, afectando el rendimiento integral y la toma de decisiones.`;
+    
+    const justificacionText = isIEEE ? `C. MOTIVACIÓN Y JUSTIFICACIÓN -- Es pertinente implementar este estudio de caso porque ${context.justificacion} Además, aportará un marco referencial para futuros análisis en escenarios de condiciones similares.` : `Es pertinente implementar este estudio de caso porque ${context.justificacion} Además, aportará un marco referencial para futuros análisis en escenarios de condiciones similares.`;
+
+    let especificos = [
+      "Analizar la problemática actual empleando herramientas metodológicas.",
+      "Diseñar una estructura lógica que solvente las necesidades detectadas.",
+      "Validar la eficacia de la propuesta a través de pruebas de control."
+    ];
+    if (reportType === 'corto') {
+      especificos = especificos.slice(0, 2);
+    } else if (reportType === 'universitario' || reportType === 'tecnico') {
+      especificos.push("Evaluar la viabilidad económica y ambiental del sistema implementado.");
+    }
+    
+    let conclusionesList = [...context.conclusiones];
+    let recomendacionesList = [...context.recomendaciones];
+    
+    if (reportType === 'corto') {
+      conclusionesList = conclusionesList.slice(0, 2);
+      recomendacionesList = recomendacionesList.slice(0, 2);
+    } else if (reportType === 'universitario') {
+      conclusionesList.push(`Se demostró que la capacitación del personal incrementa la adopción tecnológica en un 95% en los primeros meses.`);
+      recomendacionesList.push(`Establecer revisiones de seguridad mensuales y backups distribuidos en la nube para garantizar redundancia.`);
+    } else if (reportType === 'tecnico') {
+      conclusionesList.push(`Se demostró que la capacitación del personal incrementa la adopción tecnológica en un 95% en los primeros meses.`);
+      conclusionesList.push(`El análisis de consumo eléctrico del sistema validó su viabilidad técnica para alimentación por baterías solares.`);
+      recomendacionesList.push(`Establecer revisiones de seguridad mensuales y backups distribuidos en la nube para garantizar redundancia.`);
+      recomendacionesList.push(`Migrar la API hacia arquitecturas serverless en AWS Lambda para reducir costos de infraestructura ociosa.`);
+    } else if (reportType === 'ieee') {
+      conclusionesList = conclusionesList.slice(0, 3);
+      recomendacionesList = recomendacionesList.slice(0, 3);
+    }
+
+    let referenciasList = [
+      "Gómez, A., & Pérez, R. (2025). Monitoreo Inteligente. Revista Iberoamericana de Tecnología, 12(3), 45-56.",
+      "Smith, M. (2024). Sistemas Automatizados en la Industria 4.0 (3.ª ed.). Academic Press."
+    ];
+    if (isIEEE) {
+      referenciasList = [
+        "[1] A. Gómez and R. Pérez, \"Monitoreo Inteligente,\" Revista Iberoamericana de Tecnología, vol. 12, no. 3, pp. 45-56, 2025.",
+        "[2] M. Smith, Sistemas Automatizados en la Industria 4.0, 3rd ed. Academic Press, 2024.",
+        "[3] J. Doe, \"Architecting Distributed Systems for IoT,\" IEEE Transactions on Cloud Computing, vol. 10, no. 2, pp. 120-135, 2025.",
+        "[4] E. Johnson, \"Network Security and Firewalls in Corporate Infrastructures,\" IEEE Security & Privacy, vol. 23, no. 1, pp. 50-61, 2026."
+      ];
+    } else if (reportType === 'universitario' || reportType === 'tecnico') {
+      referenciasList.push("Johnson, E. (2026). Seguridad en Redes y Firewalls en la Nube. Editorial Universitaria.");
+      referenciasList.push("Doe, J. (2025). Arquitectura de Sistemas Distribuidos para IoT. Journal of Systems Engineering, 8(2), 112-125.");
+    }
+
     return {
       title: title.toUpperCase(),
       type: "report",
@@ -495,34 +1084,27 @@ export function generateLocalContent(prompt, type, predictionResult = null) {
       advisor,
       date: "2025 - 2026",
       primeraParte: {
-        introduccion: `El presente estudio de caso presenta de forma resumida la propuesta enfocada en ${context.desc} Este trabajo busca abordar las problemáticas existentes mediante soluciones innovadoras, estableciendo un diagnóstico inicial claro.`,
-        antecedente: `${context.intro} El desarrollo tecnológico actual exige adaptación rápida, y las instituciones enfrentan constantes desafíos de integración que deben ser mitigados para mantener la eficiencia.`,
-        definicionProblema: `Se evidencia una carencia sistemática en la gestión y control de procesos clave. El problema principal radica en las prácticas manuales u obsoletas que provocan demoras sustanciales, afectando el rendimiento integral y la toma de decisiones.`,
-        justificacion: `Es pertinente implementar este estudio de caso porque ${context.justificacion} Además, aportará un marco referencial para futuros análisis en escenarios de condiciones similares.`,
+        introduccion: expandSectionText(category, 'introduccion', reportType, title, introText),
+        antecedente: expandSectionText(category, 'antecedente', reportType, title, antecedenteText),
+        definicionProblema: expandSectionText(category, 'definicionProblema', reportType, title, definicionText),
+        justificacion: expandSectionText(category, 'justificacion', reportType, title, justificacionText),
         objetivos: {
           general: `Desarrollar y evaluar ${context.desc}`,
-          especificos: [
-            "Analizar la problemática actual empleando herramientas metodológicas.",
-            "Diseñar una estructura lógica que solvente las necesidades detectadas.",
-            "Validar la eficacia de la propuesta a través de pruebas de control."
-          ]
+          especificos
         }
       },
       segundaParte: {
-        marcoConceptual: `El marco conceptual define los elementos troncales que guiarán la investigación. ${context.teoria} Conceptos como "eficiencia", "sostenibilidad" y "escalabilidad" son pilares de este trabajo. Se comprende la infraestructura tecnológica como el soporte vital de operaciones concurrentes.`,
-        marcoMetodologico: `La estrategia de investigación adoptada es de naturaleza aplicada y descriptiva. Se utilizarán las siguientes herramientas: ${context.herramientas}. El procedimiento consistió en: ${context.procedimiento}. Esta metodología asegura resultados cuantificables y reproducibles.`,
-        resultadosObtenidos: `Los resultados demuestran la viabilidad de la intervención. Durante la fase de recolección de datos, se observó que la implementación de los nuevos protocolos tuvo un efecto inmediato sobre el rendimiento. Los procesos se agilizaron y las métricas se estabilizaron.`,
-        analisisResultados: `Examinando los resultados, resulta evidente que la nueva estrategia superó al método anterior. La optimización alcanzada respalda plenamente la viabilidad técnica y operativa de los cambios propuestos en el contexto del problema definido.`
+        marcoConceptual: expandSectionText(category, 'marcoConceptual', reportType, title, context.teoria),
+        marcoMetodologico: expandSectionText(category, 'marcoMetodologico', reportType, title, `Se utilizarán las siguientes herramientas: ${context.herramientas}. El procedimiento consistió en: ${context.procedimiento}. Esta metodología asegura resultados cuantificables y reproducibles.`),
+        resultadosObtenidos: expandSectionText(category, 'resultadosObtenidos', reportType, title, "Los resultados demuestran la viabilidad de la intervención. Durante la fase de recolección de datos, se observó que la implementación de los nuevos protocolos tuvo un efecto inmediato sobre el rendimiento. Los procesos se agilizaron y las métricas se estabilizaron."),
+        analisisResultados: expandSectionText(category, 'analisisResultados', reportType, title, "Examinando los resultados, resulta evidente que la nueva estrategia superó al método anterior. La optimización alcanzada respalda plenamente la viabilidad técnica y operativa de los cambios propuestos en el contexto del problema definido.")
       },
       terceraParte: {
-        conclusiones: context.conclusiones,
-        recomendaciones: context.recomendaciones
+        conclusiones: conclusionesList,
+        recomendaciones: recomendacionesList
       },
       cuartaParte: {
-        referencias: [
-          "Gómez, A., & Pérez, R. (2025). Monitoreo Inteligente. Revista Iberoamericana de Tecnología, 12(3), 45-56.",
-          "Smith, M. (2024). Sistemas Automatizados en la Industria 4.0 (3.ª ed.). Academic Press."
-        ],
+        referencias: referenciasList,
         anexos: "Anexo A: Matriz de levantamiento de requerimientos.\nAnexo B: Instrumentos de validación técnica."
       }
     };
@@ -784,12 +1366,84 @@ export function parseSlideText(content) {
 }
 
 // Función para interactuar con la API de Gemini Cloud
-export async function generateGeminiContent(prompt, docType, apiKey, customMetadataObj = {}, attachedFiles = []) {
+export async function generateGeminiContent(prompt, docType, apiKey, customMetadataObj = {}, attachedFiles = [], reportType = 'tecnico', existingDoc = null) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   
   // Construir prompts y esquemas según el tipo de documento
   let schemaDescription = "";
   if (docType === 'report' || docType === 'docx' || docType === 'pdf') {
+    let wordCounts = {
+      introduccion: "200 - 250 palabras",
+      antecedente: "200 - 250 palabras",
+      definicionProblema: "200 - 250 palabras",
+      justificacion: "80 - 100 palabras",
+      marcoConceptual: "800 - 900 palabras",
+      marcoMetodologico: "450 - 500 palabras",
+      resultadosObtenidos: "350 - 400 palabras",
+      analisisResultados: "200 - 250 palabras",
+      numConclusiones: 2,
+      numRecomendaciones: 2,
+      numReferencias: 2
+    };
+
+    if (reportType === 'corto') {
+      wordCounts = {
+        introduccion: "150 - 200 palabras",
+        antecedente: "150 - 200 palabras",
+        definicionProblema: "150 - 200 palabras",
+        justificacion: "80 - 100 palabras",
+        marcoConceptual: "250 - 300 palabras",
+        marcoMetodologico: "200 - 250 palabras",
+        resultadosObtenidos: "150 - 200 palabras",
+        analisisResultados: "100 - 150 palabras",
+        numConclusiones: 2,
+        numRecomendaciones: 2,
+        numReferencias: 2
+      };
+    } else if (reportType === 'universitario') {
+      wordCounts = {
+        introduccion: "500 - 700 palabras",
+        antecedente: "500 - 700 palabras",
+        definicionProblema: "500 - 700 palabras",
+        justificacion: "250 - 350 palabras",
+        marcoConceptual: "1500 - 2000 palabras",
+        marcoMetodologico: "800 - 1000 palabras",
+        resultadosObtenidos: "700 - 900 palabras",
+        analisisResultados: "500 - 700 palabras",
+        numConclusiones: 3,
+        numRecomendaciones: 3,
+        numReferencias: 5
+      };
+    } else if (reportType === 'tecnico') {
+      wordCounts = {
+        introduccion: "800 - 1000 palabras",
+        antecedente: "800 - 1000 palabras",
+        definicionProblema: "800 - 1000 palabras",
+        justificacion: "500 - 700 palabras",
+        marcoConceptual: "2500 - 3500 palabras",
+        marcoMetodologico: "1500 - 2000 palabras con diagramas descritos, arquitectura del sistema y fragmentos de código o pseudocódigo realistas",
+        resultadosObtenidos: "1200 - 1600 palabras incluyendo simulaciones de pruebas y análisis de seguridad detallado",
+        analisisResultados: "800 - 1200 palabras",
+        numConclusiones: 4,
+        numRecomendaciones: 4,
+        numReferencias: 6
+      };
+    } else if (reportType === 'ieee') {
+      wordCounts = {
+        introduccion: "500 - 750 palabras. Deberás empezar obligatoriamente con un 'RESUMEN / ABSTRACT' formal de 150-200 palabras y luego continuar con la Introducción estilo IEEE",
+        antecedente: "Trabajos Relacionados y Antecedentes (400 - 600 palabras)",
+        definicionProblema: "Formulación del Problema y Desafíos Científicos (400 - 600 palabras)",
+        justificacion: "Contribución y Justificación de la investigación (200 - 300 palabras)",
+        marcoConceptual: "Fundamentos Científicos y Marco Teórico en formato formal (1000 - 1500 palabras)",
+        marcoMetodologico: "Diseño Experimental, Propuesta y Metodología (600 - 900 palabras)",
+        resultadosObtenidos: "Evaluación Experimental y Resultados Obtenidos con referencias a tablas/figuras (500 - 800 palabras)",
+        analisisResultados: "Discusión de Resultados y Análisis de Rendimiento (400 - 600 palabras)",
+        numConclusiones: 2,
+        numRecomendaciones: 2,
+        numReferencias: 4
+      };
+    }
+
     schemaDescription = `Return a JSON object conforming exactly to this schema for an 'Estudio de Caso':
 {
   "title": "TEMA EN MAYÚSCULAS",
@@ -800,28 +1454,34 @@ export async function generateGeminiContent(prompt, docType, apiKey, customMetad
   "advisor": "Name of Advisor/Teacher",
   "date": "Periodo, e.g. 2025 - 2026",
   "primeraParte": {
-    "introduccion": "Resumen del estudio de caso (200 - 250 palabras)",
-    "antecedente": "Breve explicación del contexto donde surge el problema (200 - 250 palabras)",
-    "definicionProblema": "Detalle del suceso o fenómeno problemático (200 - 250 palabras)",
-    "justificacion": "Razones por las cuales el estudio es pertinente (80 - 100 palabras)",
+    "introduccion": "Introducción detallada (${wordCounts.introduccion})",
+    "antecedente": "Antecedente y contexto (${wordCounts.antecedente})",
+    "definicionProblema": "Definición del problema (${wordCounts.definicionProblema})",
+    "justificacion": "Justificación del estudio (${wordCounts.justificacion})",
     "objetivos": {
       "general": "Objetivo general iniciando con verbo en infinitivo",
       "especificos": ["Objetivo específico 1", "Objetivo específico 2"]
     }
   },
   "segundaParte": {
-    "marcoConceptual": "Definición clara de elementos y términos (800 - 900 palabras)",
-    "marcoMetodologico": "Explicación de la estrategia de investigación (450 - 500 palabras)",
-    "resultadosObtenidos": "Descripción de resultados basados en la estrategia (350 - 400 palabras)",
-    "analisisResultados": "Examinación crítica de los resultados (200 - 250 palabras)"
+    "marcoConceptual": "Marco Conceptual (${wordCounts.marcoConceptual})",
+    "marcoMetodologico": "Marco Metodológico (${wordCounts.marcoMetodologico})",
+    "resultadosObtenidos": "Resultados Obtenidos (${wordCounts.resultadosObtenidos})",
+    "analisisResultados": "Análisis de Resultados (${wordCounts.analisisResultados})"
   },
   "terceraParte": {
-    "conclusiones": ["Conclusión 1 (síntesis de hallazgos)", "Conclusión 2"],
-    "recomendaciones": ["Recomendación 1 (estrategias elaboradas)", "Recomendación 2"]
+    "conclusiones": [
+      ${Array.from({length: wordCounts.numConclusiones}).map((_, i) => `"Conclusión detallada ${i + 1}"`).join(",\n      ")}
+    ],
+    "recomendaciones": [
+      ${Array.from({length: wordCounts.numRecomendaciones}).map((_, i) => `"Recomendación detallada ${i + 1}"`).join(",\n      ")}
+    ]
   },
   "cuartaParte": {
-    "referencias": ["Referencia 1 en formato APA 7", "Referencia 2 en formato APA 7"],
-    "anexos": "Detalle de encuestas, gráficos u otros adjuntos relevantes"
+    "referencias": [
+      ${Array.from({length: wordCounts.numReferencias}).map((_, i) => `"Referencia ${i + 1} en formato APA 7 o IEEE"`).join(",\n      ")}
+    ],
+    "anexos": "Detalle de encuestas, gráficos u otros adjuntos relevantes de soporte"
   }
 }`;
   } else if (docType === 'presentation' || docType === 'pptx') {
@@ -934,7 +1594,7 @@ Make sure slide contents fit the slide dimensions (do not overflow). Use bullet 
   },
   "asunto": "Asunto of the petition",
   "saludo": "Saludo formal",
-  "cuerpo": "Detailed letter body text petitioning something",
+  "cuerpo": "Detailed letter body text petitioning something (must be between 150 and 400 words, direct and clear, in Spanish)",
   "peticion": ["Petition item 1", "Petition item 2"],
   "despedida": "Despedida formal",
   "firma": {
@@ -961,7 +1621,7 @@ Make sure slide contents fit the slide dimensions (do not overflow). Use bullet 
   },
   "asunto": "Asunto of the response",
   "saludo": "Saludo formal",
-  "cuerpo": "Detailed letter body text answering/responding to a previous petition",
+  "cuerpo": "Detailed letter body text answering/responding to a previous petition (must be between 100 and 350 words, direct and clear, in Spanish)",
   "conclusion": "Resolución / Conclusión of the response",
   "despedida": "Despedida formal",
   "firma": {
@@ -971,6 +1631,18 @@ Make sure slide contents fit the slide dimensions (do not overflow). Use bullet 
   },
   "anexos": "List of annexes"
 }`;
+  }
+
+  let existingDocInstruction = "";
+  if (existingDoc) {
+    existingDocInstruction = `
+You are MODIFIYING an existing document. 
+Here is the current document JSON data:
+${JSON.stringify(existingDoc)}
+
+The user has requested the following changes: "${prompt}".
+Please modify the existing document data according to the user's request. Keep everything else intact unless requested to change it. Maintain the exact same JSON schema structure as the input document. Make sure to adapt the content length and structure according to the specified reportType and oficios guidelines if requested or necessary.
+`;
   }
 
   // Pre-llenar metadatos si el usuario los ingresa
@@ -989,9 +1661,23 @@ Make sure slide contents fit the slide dimensions (do not overflow). Use bullet 
     fileInstruction = "Please consider the attached files/images as additional context for generating the content. ";
   }
 
-  const promptText = `You are a professional document content generator. Based on the user requirement prompt: "${prompt}", ${fileInstruction}generate the complete, realistic and detailed content in Spanish for a "${docType}" document. Do not use placeholders.
+  const promptText = existingDoc ? `You are a professional document content editor. Based on the user modification request: "${prompt}", edit the existing document.
+${existingDocInstruction}
+${schemaDescription}
+Output must be a raw JSON string ONLY. Do not wrap in markdown \`\`\`json blocks. Ensure numbers are numbers and arrays are arrays. All text must be in Spanish.`
+: `You are a professional document content generator. Based on the user requirement prompt: "${prompt}", ${fileInstruction}generate the complete, realistic and detailed content in Spanish for a "${docType}" document. Do not use placeholders.
 ${metadataOverrides}
 ${schemaDescription}
+
+IMPORTANT WORD COUNT AND LAYOUT GUIDELINES:
+- You MUST write the sections to match the exact word count ranges specified in the schema. Do not output placeholders.
+- For academic short reports ('corto'), write concise but complete paragraphs matching the specified lengths.
+- For university full reports ('universitario'), write extremely detailed, academic, and extensive paragraphs to meet the high word count requirements.
+- For technical project reports ('tecnico'), go into great detail with technical architectures, security analysis, test procedures, and realistic mock-ups of code or pseudocódigo, using highly descriptive and extensive language to meet the deep technical and high word count requirements.
+- For IEEE articles ('ieee'), use formal IEEE formatting style. The first section ('introduccion') MUST start with an abstract ('RESUMEN / ABSTRACT') of 150-200 words, followed by the introduction content.
+- For petitions ('petition'), the 'cuerpo' MUST be direct and contain between 150 and 400 words.
+- For responses ('response'), the 'cuerpo' MUST be direct and contain between 100 and 350 words.
+
 Output must be a raw JSON string ONLY. Do not wrap in markdown \`\`\`json blocks. Ensure numbers are numbers and arrays are arrays. All text must be in Spanish.`;
 
   const parts = [{ text: promptText }];

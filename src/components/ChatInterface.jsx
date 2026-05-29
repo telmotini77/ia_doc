@@ -12,7 +12,13 @@ export default function ChatInterface({
   prediction,
   aiMode,
   attachedFiles,
-  setAttachedFiles
+  setAttachedFiles,
+  generatedData,
+  setGeneratedData,
+  modifyActive,
+  setModifyActive,
+  isEditing,
+  setIsEditing
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
@@ -49,6 +55,10 @@ export default function ChatInterface({
   };
 
   const processFiles = (files) => {
+    if (attachedFiles.length + files.length > 30) {
+      alert(`No se pueden subir más de 30 archivos por consulta (actualmente tienes ${attachedFiles.length}).`);
+      return;
+    }
     files.forEach(file => {
       // Limit to 5MB
       if (file.size > 5 * 1024 * 1024) {
@@ -152,6 +162,43 @@ export default function ChatInterface({
           onDrop={handleDrop}
           style={{ flexDirection: 'column', alignItems: 'flex-start' }}
         >
+          {generatedData && (
+            <div className="modification-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '8px', padding: '4px 6px', fontSize: '12px', borderBottom: '1px dashed var(--border-color)', paddingBottom: '8px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <input 
+                  type="checkbox" 
+                  checked={modifyActive} 
+                  onChange={(e) => setModifyActive(e.target.checked)} 
+                  style={{ accentColor: 'var(--color-purple-light)', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: '500' }}>Modificar documento actual con esta consulta</span>
+              </label>
+              <button 
+                type="button" 
+                onClick={() => {
+                  setIsEditing(prev => !prev);
+                }} 
+                style={{ 
+                  background: isEditing ? 'rgba(255, 170, 0, 0.15)' : 'rgba(170, 59, 255, 0.15)', 
+                  border: isEditing ? '1px solid #ffaa00' : '1px solid var(--color-purple-light)', 
+                  color: isEditing ? '#ffaa00' : 'var(--color-purple-light)', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '4px', 
+                  fontSize: '11px', 
+                  padding: '4px 10px', 
+                  borderRadius: '4px', 
+                  transition: 'all 0.2s', 
+                  fontWeight: '600' 
+                }}
+                className="edit-toggle-btn"
+              >
+                <Sparkles size={12} />
+                <span>{isEditing ? "Habilitar Chat/IA" : "Modificar"}</span>
+              </button>
+            </div>
+          )}
           {/* Show simple badges ONLY when the uploader panel is closed to avoid duplication */}
           {!showUploader && attachedFiles && attachedFiles.length > 0 && (
             <div className="attached-files-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', width: '100%' }}>
@@ -203,20 +250,21 @@ export default function ChatInterface({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={
+                isEditing ? "Estás en Modo Edición Directa. Modifica el texto haciendo clic en los campos del documento de la derecha." :
                 docType === 'report' ? "Describe el tema para tu informe técnico (ej. 'riego inteligente iot')..." :
                 docType === 'presentation' ? "Describe el tema de la presentación (ej. 'seguridad corporativa')..." :
                 docType === 'spreadsheet' ? "Describe el proyecto para generar el libro contable de Excel..." :
                 "Describe los detalles (asunto, destinatario) para generar el oficio formal..."
               }
               className="chat-textarea"
-              disabled={loading}
+              disabled={loading || isEditing}
               rows={2}
-              style={{ flexGrow: 1 }}
+              style={{ flexGrow: 1, opacity: isEditing ? 0.6 : 1 }}
             />
             <button
               type="submit"
               className="send-btn"
-              disabled={loading || !prompt.trim()}
+              disabled={loading || !prompt.trim() || isEditing}
               style={{ marginBottom: '4px' }}
             >
               {loading ? (

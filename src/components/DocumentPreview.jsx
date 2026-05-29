@@ -1,8 +1,10 @@
 import React from 'react';
 import { 
-  BookOpen, FileDown, Download, Presentation, FileSpreadsheet, AlertCircle, Sparkles, ChevronLeft, ChevronRight
+  BookOpen, FileDown, Download, Presentation, FileSpreadsheet, AlertCircle, Sparkles, ChevronLeft, ChevronRight,
+  Upload, Image, Trash2
 } from 'lucide-react';
 import { parseSlideText } from '../utils/documentGenerator';
+import { PPTX_PALETTES } from '../utils/exporters';
 
 const fontMapping = {
   times12: { family: "'Times New Roman', Times, serif", size: '12pt' },
@@ -30,7 +32,9 @@ export default function DocumentPreview({
   coverSizes,
   isEditing,
   setIsEditing,
-  setGeneratedData
+  setGeneratedData,
+  pptxPalette,
+  customPptxPalette
 }) {
   return (
     <div className="preview-container glassmorphism">
@@ -555,192 +559,407 @@ export default function DocumentPreview({
                 </div>
               </div>
             )}
+                 {/* TYPE B: Presentation Preview */}
+            {docType === 'presentation' && (() => {
+              const activePalette = pptxPalette === 'custom' ? customPptxPalette : PPTX_PALETTES[pptxPalette || 'galactic'];
+              const styleVars = {
+                '--slide-bg': activePalette.background,
+                '--slide-primary': activePalette.primary,
+                '--slide-card-bg': activePalette.cardBg,
+                '--slide-title': activePalette.title,
+                '--slide-text': activePalette.text,
+                '--slide-muted': activePalette.muted,
+                '--slide-border': activePalette.isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.12)'
+              };
 
-            {/* TYPE B: Presentation Preview */}
-            {docType === 'presentation' && (
-              <div className="preview-presentation">
-                <div className="slideshow-container">
-                  <div className="slide-card animate-fade-in" key={activeSlide}>
-                    <div className="slide-side-accent"></div>
-                    
-                    {isEditing ? (
-                      <div className="slide-body-content" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', boxSizing: 'border-box' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Título de Diapositiva</label>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.slides[activeSlide].title} 
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setGeneratedData(prev => {
-                                const newSlides = [...prev.slides];
-                                newSlides[activeSlide] = { ...newSlides[activeSlide], title: val };
-                                return { ...prev, slides: newSlides };
-                              });
-                            }}
-                          />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexGrow: 1 }}>
-                          <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Contenido (use viñetas o líneas separadas por saltos de línea)</label>
-                          <textarea 
-                            className="edit-textarea" 
-                            value={generatedData.slides[activeSlide].content} 
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setGeneratedData(prev => {
-                                const newSlides = [...prev.slides];
-                                newSlides[activeSlide] = { ...newSlides[activeSlide], content: val };
-                                return { ...prev, slides: newSlides };
-                              });
-                            }}
-                            style={{ flexGrow: 1, height: '180px' }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {activeSlide === 0 ? (
-                          <div className="slide-cover">
-                            <span className="slide-inst">{generatedData.institution}</span>
-                            <h2 className="slide-main-title">{generatedData.title}</h2>
-                            <div className="slide-members">
-                              <p><strong>Autores:</strong> {generatedData.members}</p>
-                              <p><strong>Fecha:</strong> {generatedData.date}</p>
-                            </div>
+              const slideData = generatedData.slides[activeSlide];
+              const isBgImage = slideData?.image && slideData?.imagePosition === 'background';
+              const slideCardStyle = {
+                ...styleVars,
+                ...(isBgImage ? { backgroundImage: `url(${slideData.image})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {})
+              };
+
+              return (
+                <div className="preview-presentation" style={styleVars}>
+                  <div className="slideshow-container">
+                    <div className="slide-card animate-fade-in" key={activeSlide} style={slideCardStyle}>
+                      <div className="slide-side-accent" style={{ background: 'var(--slide-primary)' }}></div>
+                      
+                      {isEditing ? (
+                        <div className="slide-body-content" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', boxSizing: 'border-box' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Título de Diapositiva</label>
+                            <input 
+                              type="text" 
+                              className="edit-input" 
+                              value={slideData.title} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setGeneratedData(prev => {
+                                  const newSlides = [...prev.slides];
+                                  newSlides[activeSlide] = { ...newSlides[activeSlide], title: val };
+                                  return { ...prev, slides: newSlides };
+                                });
+                              }}
+                            />
                           </div>
-                        ) : (
-                          <div className="slide-body-content">
-                            <div className="slide-header-block">
-                              <span className="slide-num">Slide {generatedData.slides[activeSlide].num}</span>
-                              <h2>{generatedData.slides[activeSlide].title}</h2>
+                          
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexGrow: 1 }}>
+                            <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Contenido (use viñetas o líneas separadas por saltos de línea)</label>
+                            <textarea 
+                              className="edit-textarea" 
+                              value={slideData.content} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setGeneratedData(prev => {
+                                  const newSlides = [...prev.slides];
+                                  newSlides[activeSlide] = { ...newSlides[activeSlide], content: val };
+                                  return { ...prev, slides: newSlides };
+                                });
+                              }}
+                              style={{ flexGrow: 1, height: '120px' }}
+                            />
+                          </div>
+
+                          {/* Image controls in edit mode */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--border-color)', paddingTop: '10px', marginTop: '4px' }}>
+                            <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 'bold' }}>Imagen de Diapositiva</label>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                              <label className="premium-btn btn-settings" style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
+                                <Upload size={14} />
+                                <span>Subir Local</span>
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  style={{ display: 'none' }}
+                                  onChange={(e) => {
+                                    const file = e.target.files[0];
+                                    if (file) {
+                                      const reader = new FileReader();
+                                      reader.onload = (uploadEvent) => {
+                                        setGeneratedData(prev => {
+                                          const newSlides = [...prev.slides];
+                                          newSlides[activeSlide] = { 
+                                            ...newSlides[activeSlide], 
+                                            image: uploadEvent.target.result,
+                                            imagePosition: newSlides[activeSlide].imagePosition || 'right'
+                                          };
+                                          return { ...prev, slides: newSlides };
+                                        });
+                                      };
+                                      reader.readAsDataURL(file);
+                                    }
+                                  }}
+                                />
+                              </label>
+
+                              <div style={{ flexGrow: 1, minWidth: '150px' }}>
+                                <input 
+                                  type="text"
+                                  className="premium-input"
+                                  placeholder="O pegue URL de imagen..."
+                                  style={{ padding: '6px 10px', fontSize: '12px' }}
+                                  value={slideData.image && !slideData.image.startsWith('data:') ? slideData.image : ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setGeneratedData(prev => {
+                                      const newSlides = [...prev.slides];
+                                      newSlides[activeSlide] = { 
+                                        ...newSlides[activeSlide], 
+                                        image: val || undefined,
+                                        imagePosition: newSlides[activeSlide].imagePosition || 'right'
+                                      };
+                                      return { ...prev, slides: newSlides };
+                                    });
+                                  }}
+                                />
+                              </div>
+                              
+                              {slideData.image && (
+                                <select
+                                  className="premium-select"
+                                  style={{ width: '120px', padding: '6px 10px', fontSize: '12px', cursor: 'pointer' }}
+                                  value={slideData.imagePosition || 'right'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setGeneratedData(prev => {
+                                      const newSlides = [...prev.slides];
+                                      newSlides[activeSlide] = { ...newSlides[activeSlide], imagePosition: val };
+                                      return { ...prev, slides: newSlides };
+                                    });
+                                  }}
+                                >
+                                  <option value="right">Derecha</option>
+                                  <option value="left">Izquierda</option>
+                                  <option value="background">Fondo</option>
+                                </select>
+                              )}
+
+                              {slideData.image && (
+                                <button
+                                  type="button"
+                                  className="premium-btn btn-settings"
+                                  style={{ padding: '6px 10px', background: '#dc2626', borderColor: '#dc2626', color: '#fff', margin: 0 }}
+                                  onClick={() => {
+                                    setGeneratedData(prev => {
+                                      const newSlides = [...prev.slides];
+                                      newSlides[activeSlide] = { 
+                                        ...newSlides[activeSlide], 
+                                        image: undefined,
+                                        imagePosition: undefined
+                                      };
+                                      return { ...prev, slides: newSlides };
+                                    });
+                                  }}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                             
-                            {(() => {
-                              const parsed = parseSlideText(generatedData.slides[activeSlide].content);
+                            {slideData.image && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                <img 
+                                  src={slideData.image} 
+                                  alt="Preview Mini" 
+                                  style={{ height: '28px', width: 'auto', borderRadius: '4px', border: '1px solid var(--border-color)', objectFit: 'contain' }} 
+                                />
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                  Imagen cargada ({slideData.imagePosition === 'background' ? 'Fondo de diapositiva' : `Ubicación: ${slideData.imagePosition === 'left' ? 'Izquierda' : 'Derecha'}`})
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {activeSlide === 0 ? (
+                            <div className="slide-cover">
+                              <span className="slide-inst">{generatedData.institution}</span>
+                              <h2 className="slide-main-title">{generatedData.title}</h2>
+                              <div className="slide-members">
+                                <p><strong>Autores:</strong> {generatedData.members}</p>
+                                <p><strong>Fecha:</strong> {generatedData.date}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="slide-body-content">
+                              <div className="slide-header-block">
+                                <span className="slide-num">Slide {slideData.num}</span>
+                                <h2>{slideData.title}</h2>
+                              </div>
                               
-                              if (parsed.type === 'table') {
-                                return (
-                                  <div className="slide-text">
-                                    <table className="slide-table">
-                                      <tbody>
-                                        {parsed.raw.split("\n").filter(l => l.trim().length > 0 && !l.includes("---")).map((line, lIdx) => (
-                                          <tr key={lIdx} className={lIdx === 0 ? 'th-row' : ''}>
-                                            {line.split("|").map((cell, cIdx) => (
-                                              <td key={cIdx}>{cell.trim()}</td>
-                                            ))}
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                              {(() => {
+                                const parsed = parseSlideText(slideData.content);
+                                const hasImage = slideData.image && slideData.imagePosition !== 'background';
+                                const imgPos = slideData.imagePosition || 'right';
+
+                                const renderTable = () => (
+                                  <table className="slide-table">
+                                    <tbody>
+                                      {parsed.raw.split("\n").filter(l => l.trim().length > 0 && !l.includes("---")).map((line, lIdx) => (
+                                        <tr key={lIdx} className={lIdx === 0 ? 'th-row' : ''}>
+                                          {line.split("|").map((cell, cIdx) => (
+                                            <td key={cIdx}>{cell.trim()}</td>
+                                          ))}
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                );
+
+                                const renderImage = () => (
+                                  <div className="slide-image-container">
+                                    <img src={slideData.image} alt={slideData.title} className="slide-inline-image" />
                                   </div>
                                 );
-                              } else {
-                                const blocks = parsed.data;
-                                if (blocks.length === 2) {
-                                  const leftBlock = blocks[0];
-                                  const rightBlock = blocks[1];
- 
-                                  const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
-                                  const leftCount = leftBlock.bullets.length;
-                                  let leftFontSize = '12px';
-                                  let leftTitleSize = '14px';
-                                  let leftGap = '6px';
-                                  if (leftLength > 250 || leftCount > 4) {
-                                    leftFontSize = '10px';
-                                    leftTitleSize = '12px';
-                                    leftGap = '4px';
-                                  }
- 
-                                  const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
-                                  const rightCount = rightBlock.bullets.length;
-                                  let rightFontSize = '12px';
-                                  let rightTitleSize = '14px';
-                                  let rightGap = '6px';
-                                  if (rightLength > 250 || rightCount > 4) {
-                                    rightFontSize = '10px';
-                                    rightTitleSize = '12px';
-                                    rightGap = '4px';
-                                  }
- 
+
+                                if (hasImage) {
+                                  // Live Image Split Layout
+                                  const textContent = () => {
+                                    if (parsed.type === 'table') {
+                                      return <div className="slide-text">{renderTable()}</div>;
+                                    } else {
+                                      const blocks = parsed.data;
+                                      if (blocks.length === 2) {
+                                        return (
+                                          <div className="slide-stacked-layout">
+                                            {blocks.map((block, idx) => {
+                                              const bLength = block.bullets.reduce((sum, b) => sum + b.length, 0) + (block.title?.length || 0);
+                                              const bCount = block.bullets.length;
+                                              let fontSize = '11px';
+                                              let titleSize = '13px';
+                                              let gap = '4px';
+                                              if (bLength > 200 || bCount > 4) {
+                                                fontSize = '9.5px';
+                                                titleSize = '11px';
+                                                gap = '2px';
+                                              }
+                                              return (
+                                                <div key={idx} className="slide-col-card" style={{ gap }}>
+                                                  {block.title && <h4 style={{ fontSize: titleSize }}>{block.title}</h4>}
+                                                  <ul className="slide-ul" style={{ gap }}>
+                                                    {block.bullets.map((bullet, bIdx) => (
+                                                      <li key={bIdx} style={{ fontSize }} className={bullet.length > 2 ? 'bullet' : 'para-line'}>{bullet}</li>
+                                                    ))}
+                                                  </ul>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        );
+                                      } else {
+                                        const mainBlock = blocks[0] || { title: "", bullets: [] };
+                                        const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
+                                        const mainCount = mainBlock.bullets.length;
+                                        let mainFontSize = '12px';
+                                        let mainTitleSize = '14px';
+                                        let mainGap = '6px';
+                                        if (mainLength > 250 || mainCount > 4) {
+                                          mainFontSize = '10.5px';
+                                          mainTitleSize = '12px';
+                                          mainGap = '4px';
+                                        }
+                                        return (
+                                          <div className="slide-single-card" style={{ gap: mainGap, height: '100%' }}>
+                                            {mainBlock.title && <h4 style={{ fontSize: mainTitleSize }}>{mainBlock.title}</h4>}
+                                            <ul className="slide-ul" style={{ gap: mainGap }}>
+                                              {mainBlock.bullets.map((bullet, idx) => (
+                                                <li key={idx} style={{ fontSize: mainFontSize }} className={bullet.length > 2 && !bullet.includes("Contacto:") ? 'bullet' : 'para-line'}>{bullet}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        );
+                                      }
+                                    }
+                                  };
+
                                   return (
-                                    <div className="slide-dual-layout">
-                                      <div className="slide-col-card" style={{ gap: leftGap }}>
-                                        {leftBlock.title && <h4 style={{ fontSize: leftTitleSize }}>{leftBlock.title}</h4>}
-                                        <ul className="slide-ul" style={{ gap: leftGap }}>
-                                          {leftBlock.bullets.map((bullet, idx) => (
-                                            <li key={idx} style={{ fontSize: leftFontSize }} className={bullet.length > 2 ? 'bullet' : 'para-line'}>{bullet}</li>
-                                          ))}
-                                        </ul>
+                                    <div className={`slide-dual-layout-with-image ${imgPos === 'left' ? 'image-left' : 'image-right'}`}>
+                                      <div className="slide-col-content">
+                                        {textContent()}
                                       </div>
-                                      <div className="slide-col-card" style={{ gap: rightGap }}>
-                                        {rightBlock.title && <h4 style={{ fontSize: rightTitleSize }}>{rightBlock.title}</h4>}
-                                        <ul className="slide-ul" style={{ gap: rightGap }}>
-                                          {rightBlock.bullets.map((bullet, idx) => (
-                                            <li key={idx} style={{ fontSize: rightFontSize }} className={bullet.length > 2 ? 'bullet' : 'para-line'}>{bullet}</li>
-                                          ))}
-                                        </ul>
+                                      <div className="slide-col-image">
+                                        {renderImage()}
                                       </div>
                                     </div>
                                   );
                                 } else {
-                                  const mainBlock = blocks[0] || { title: "", bullets: [] };
-                                  const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
-                                  const mainCount = mainBlock.bullets.length;
-                                  let mainFontSize = '13.5px';
-                                  let mainTitleSize = '15.5px';
-                                  let mainGap = '8px';
-                                  if (mainLength > 350 || mainCount > 5) {
-                                    mainFontSize = '11px';
-                                    mainTitleSize = '13px';
-                                    mainGap = '4px';
-                                  }
- 
-                                  return (
-                                    <div className="slide-single-layout">
-                                      <div className="slide-single-card" style={{ gap: mainGap }}>
-                                        {mainBlock.title && <h4 style={{ fontSize: mainTitleSize }}>{mainBlock.title}</h4>}
-                                        <ul className="slide-ul" style={{ gap: mainGap }}>
-                                          {mainBlock.bullets.map((bullet, idx) => (
-                                            <li key={idx} style={{ fontSize: mainFontSize }} className={bullet.length > 2 && !bullet.includes("Contacto:") ? 'bullet' : 'para-line'}>{bullet}</li>
-                                          ))}
-                                        </ul>
+                                  // Standard layouts without image
+                                  if (parsed.type === 'table') {
+                                    return (
+                                      <div className="slide-text">
+                                        {renderTable()}
                                       </div>
-                                    </div>
-                                  );
+                                    );
+                                  } else {
+                                    const blocks = parsed.data;
+                                    if (blocks.length === 2) {
+                                      const leftBlock = blocks[0];
+                                      const rightBlock = blocks[1];
+      
+                                      const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
+                                      const leftCount = leftBlock.bullets.length;
+                                      let leftFontSize = '12px';
+                                      let leftTitleSize = '14px';
+                                      let leftGap = '6px';
+                                      if (leftLength > 250 || leftCount > 4) {
+                                        leftFontSize = '10px';
+                                        leftTitleSize = '12px';
+                                        leftGap = '4px';
+                                      }
+      
+                                      const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
+                                      const rightCount = rightBlock.bullets.length;
+                                      let rightFontSize = '12px';
+                                      let rightTitleSize = '14px';
+                                      let rightGap = '6px';
+                                      if (rightLength > 250 || rightCount > 4) {
+                                        rightFontSize = '10px';
+                                        rightTitleSize = '12px';
+                                        rightGap = '4px';
+                                      }
+      
+                                      return (
+                                        <div className="slide-dual-layout">
+                                          <div className="slide-col-card" style={{ gap: leftGap }}>
+                                            {leftBlock.title && <h4 style={{ fontSize: leftTitleSize }}>{leftBlock.title}</h4>}
+                                            <ul className="slide-ul" style={{ gap: leftGap }}>
+                                              {leftBlock.bullets.map((bullet, idx) => (
+                                                <li key={idx} style={{ fontSize: leftFontSize }} className={bullet.length > 2 ? 'bullet' : 'para-line'}>{bullet}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                          <div className="slide-col-card" style={{ gap: rightGap }}>
+                                            {rightBlock.title && <h4 style={{ fontSize: rightTitleSize }}>{rightBlock.title}</h4>}
+                                            <ul className="slide-ul" style={{ gap: rightGap }}>
+                                              {rightBlock.bullets.map((bullet, idx) => (
+                                                <li key={idx} style={{ fontSize: rightFontSize }} className={bullet.length > 2 ? 'bullet' : 'para-line'}>{bullet}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      const mainBlock = blocks[0] || { title: "", bullets: [] };
+                                      const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
+                                      const mainCount = mainBlock.bullets.length;
+                                      let mainFontSize = '13.5px';
+                                      let mainTitleSize = '15.5px';
+                                      let mainGap = '8px';
+                                      if (mainLength > 350 || mainCount > 5) {
+                                        mainFontSize = '11px';
+                                        mainTitleSize = '13px';
+                                        mainGap = '4px';
+                                      }
+      
+                                      return (
+                                        <div className="slide-single-layout">
+                                          <div className="slide-single-card" style={{ gap: mainGap }}>
+                                            {mainBlock.title && <h4 style={{ fontSize: mainTitleSize }}>{mainBlock.title}</h4>}
+                                            <ul className="slide-ul" style={{ gap: mainGap }}>
+                                              {mainBlock.bullets.map((bullet, idx) => (
+                                                <li key={idx} style={{ fontSize: mainFontSize }} className={bullet.length > 2 && !bullet.includes("Contacto:") ? 'bullet' : 'para-line'}>{bullet}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                  }
                                 }
-                              }
-                            })()}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  <div className="slideshow-controls">
-                    <button 
-                      type="button" 
-                      disabled={activeSlide === 0} 
-                      onClick={() => setActiveSlide(activeSlide - 1)}
-                      className="btn-slide-nav"
-                    >
-                      <ChevronLeft size={16} /> Anterior
-                    </button>
-                    
-                    <span className="slide-index">Diapositiva {activeSlide + 1} de {generatedData.slides.length}</span>
-                    
-                    <button 
-                      type="button" 
-                      disabled={activeSlide === generatedData.slides.length - 1} 
-                      onClick={() => setActiveSlide(activeSlide + 1)}
-                      className="btn-slide-nav"
-                    >
-                      Siguiente <ChevronRight size={16} />
-                    </button>
+                              })()}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+  
+                    <div className="slideshow-controls">
+                      <button 
+                        type="button" 
+                        disabled={activeSlide === 0} 
+                        onClick={() => setActiveSlide(activeSlide - 1)}
+                        className="btn-slide-nav"
+                      >
+                        <ChevronLeft size={16} /> Anterior
+                      </button>
+                      
+                      <span className="slide-index">Diapositiva {activeSlide + 1} de {generatedData.slides.length}</span>
+                      
+                      <button 
+                        type="button" 
+                        disabled={activeSlide === generatedData.slides.length - 1} 
+                        onClick={() => setActiveSlide(activeSlide + 1)}
+                        className="btn-slide-nav"
+                      >
+                        Siguiente <ChevronRight size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* TYPE C: Spreadsheet Preview */}
             {docType === 'spreadsheet' && (

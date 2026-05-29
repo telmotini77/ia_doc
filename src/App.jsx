@@ -16,7 +16,8 @@ import {
   downloadDOCX,
   downloadPDF,
   downloadXLSX,
-  downloadPPTX
+  downloadPPTX,
+  PPTX_PALETTES
 } from './utils/exporters';
 
 import './App.css';
@@ -72,6 +73,17 @@ export default function App() {
   const [activeSlide, setActiveSlide] = useState(0);
   const [activeSheet, setActiveSheet] = useState('hoja1');
   const [toast, setToast] = useState(null);
+
+  // PowerPoint Presentation Styling state
+  const [pptxPalette, setPptxPalette] = useState('galactic');
+  const [customPptxPalette, setCustomPptxPalette] = useState({
+    primary: '#AA3BFF',
+    background: '#15111E',
+    cardBg: '#20192B',
+    title: '#DDBBFF',
+    text: '#E5E3EB',
+    muted: '#A5A0B2'
+  });
 
   // Document formatting state (for reports)
   const [reportFormat, setReportFormat] = useState({
@@ -258,8 +270,9 @@ export default function App() {
         downloadXLSX(generatedData, `${baseFilename}.xlsx`, selectedCharts);
         showToast("Descarga de Excel (.xlsx) iniciada con éxito.", "success");
       } else if (format === 'powerpoint' && docType === 'presentation') {
-        downloadPPTX(generatedData, `${baseFilename}.pptx`);
-        showToast("Descarga de PowerPoint (.pptx) iniciada.", "success");
+        const activePaletteColors = pptxPalette === 'custom' ? customPptxPalette : PPTX_PALETTES[pptxPalette];
+        downloadPPTX(generatedData, `${baseFilename}.pptx`, activePaletteColors);
+        showToast("Descarga de PowerPoint (.pptx) iniciada con éxito.", "success");
       } else {
         showToast("Este formato no corresponde al tipo de documento seleccionado.", "error");
       }
@@ -314,6 +327,10 @@ export default function App() {
           setCoverAlign={setCoverAlign}
           coverSizes={coverSizes}
           setCoverSizes={setCoverSizes}
+          pptxPalette={pptxPalette}
+          setPptxPalette={setPptxPalette}
+          customPptxPalette={customPptxPalette}
+          setCustomPptxPalette={setCustomPptxPalette}
         />
 
         <main className="workspace">
@@ -361,6 +378,8 @@ export default function App() {
             isEditing={isEditing}
             setIsEditing={setIsEditing}
             setGeneratedData={setGeneratedData}
+            pptxPalette={pptxPalette}
+            customPptxPalette={customPptxPalette}
           />
         </main>
       </div>

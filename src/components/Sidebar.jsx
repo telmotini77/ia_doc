@@ -30,7 +30,11 @@ export default function Sidebar({
   coverAlign,
   setCoverAlign,
   coverSizes,
-  setCoverSizes
+  setCoverSizes,
+  pptxPalette,
+  setPptxPalette,
+  customPptxPalette,
+  setCustomPptxPalette
 }) {
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [isConsoleOpen, setIsConsoleOpen] = useState(true);
@@ -244,6 +248,127 @@ export default function Sidebar({
                       <option value="0">Sin sangría de primera línea</option>
                     </select>
                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Formato de la Presentación (Solo para Diapositivas/PPTX) */}
+        {docType === 'presentation' && (
+          <div className="sidebar-section animate-fade-in">
+            <button 
+              className="section-header-btn" 
+              onClick={() => setIsFormatOpen(!isFormatOpen)}
+            >
+              <span className="section-label">Formato de Presentación</span>
+              {isFormatOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+            {isFormatOpen && (
+              <div className="metadata-form-panel animate-slide-down">
+                <div className="meta-inputs-grid">
+                  <div className="meta-field">
+                    <label>Paleta de Colores</label>
+                    <select
+                      value={pptxPalette}
+                      onChange={(e) => setPptxPalette(e.target.value)}
+                      className="premium-select"
+                    >
+                      <option value="galactic">Violeta Galáctico</option>
+                      <option value="ocean">Océano Profundo</option>
+                      <option value="emerald">Bosque Esmeralda</option>
+                      <option value="sunset">Cálido Atardecer</option>
+                      <option value="lightMinimal">Mínimo Claro</option>
+                      <option value="monochrome">Monocromo Oscuro</option>
+                      <option value="custom">Personalizado (Elegir colores)</option>
+                    </select>
+                  </div>
+
+                  {pptxPalette === 'custom' && (
+                    <div className="custom-color-pickers" style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: 'span 2', marginTop: '6px' }}>
+                      <label className="sub-section-label" style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)' }}>Colores Personalizados</label>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <div className="meta-field">
+                          <label style={{ fontSize: '10px' }}>Color Primario</label>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <input 
+                              type="color" 
+                              value={customPptxPalette.primary} 
+                              onChange={(e) => setCustomPptxPalette(prev => ({ ...prev, primary: e.target.value }))}
+                              style={{ width: '28px', height: '24px', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{customPptxPalette.primary}</span>
+                          </div>
+                        </div>
+
+                        <div className="meta-field">
+                          <label style={{ fontSize: '10px' }}>Fondo Diapositiva</label>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <input 
+                              type="color" 
+                              value={customPptxPalette.background} 
+                              onChange={(e) => setCustomPptxPalette(prev => ({ ...prev, background: e.target.value }))}
+                              style={{ width: '28px', height: '24px', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{customPptxPalette.background}</span>
+                          </div>
+                        </div>
+
+                        <div className="meta-field">
+                          <label style={{ fontSize: '10px' }}>Fondo de Tarjeta</label>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <input 
+                              type="color" 
+                              value={customPptxPalette.cardBg} 
+                              onChange={(e) => setCustomPptxPalette(prev => ({ ...prev, cardBg: e.target.value }))}
+                              style={{ width: '28px', height: '24px', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{customPptxPalette.cardBg}</span>
+                          </div>
+                        </div>
+
+                        <div className="meta-field">
+                          <label style={{ fontSize: '10px' }}>Texto Título</label>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <input 
+                              type="color" 
+                              value={customPptxPalette.title} 
+                              onChange={(e) => setCustomPptxPalette(prev => ({ ...prev, title: e.target.value }))}
+                              style={{ width: '28px', height: '24px', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{customPptxPalette.title}</span>
+                          </div>
+                        </div>
+
+                        <div className="meta-field">
+                          <label style={{ fontSize: '10px' }}>Texto Cuerpo</label>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <input 
+                              type="color" 
+                              value={customPptxPalette.text} 
+                              onChange={(e) => setCustomPptxPalette(prev => ({ ...prev, text: e.target.value }))}
+                              style={{ width: '28px', height: '24px', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{customPptxPalette.text}</span>
+                          </div>
+                        </div>
+
+                        <div className="meta-field">
+                          <label style={{ fontSize: '10px' }}>Texto Secundario</label>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <input 
+                              type="color" 
+                              value={customPptxPalette.muted} 
+                              onChange={(e) => setCustomPptxPalette(prev => ({ ...prev, muted: e.target.value }))}
+                              style={{ width: '28px', height: '24px', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '11px', fontFamily: 'monospace' }}>{customPptxPalette.muted}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

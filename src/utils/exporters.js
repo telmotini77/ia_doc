@@ -860,21 +860,99 @@ export function downloadXLSX(data, filename, selectedCharts = ['pie', 'bar', 'li
 }
 
 // 4. Exportador a PowerPoint (.pptx)
-export function downloadPPTX(data, filename) {
+export const PPTX_PALETTES = {
+  galactic: {
+    name: 'Violeta Galáctico',
+    primary: '#AA3BFF',
+    background: '#15111E',
+    cardBg: '#20192B',
+    title: '#DDBBFF',
+    text: '#E5E3EB',
+    muted: '#A5A0B2',
+    isLight: false
+  },
+  ocean: {
+    name: 'Océano Profundo',
+    primary: '#00D2FF',
+    background: '#0B132B',
+    cardBg: '#1C2541',
+    title: '#BCEEFF',
+    text: '#E2E8F0',
+    muted: '#94A3B8',
+    isLight: false
+  },
+  emerald: {
+    name: 'Bosque Esmeralda',
+    primary: '#10B981',
+    background: '#061F1A',
+    cardBg: '#0B3C32',
+    title: '#D1FAE5',
+    text: '#F0FDF4',
+    muted: '#A7F3D0',
+    isLight: false
+  },
+  sunset: {
+    name: 'Cálido Atardecer',
+    primary: '#F59E0B',
+    background: '#1E1510',
+    cardBg: '#2F221B',
+    title: '#FEF3C7',
+    text: '#FFFBEB',
+    muted: '#FDE68A',
+    isLight: false
+  },
+  lightMinimal: {
+    name: 'Mínimo Claro',
+    primary: '#4F46E5',
+    background: '#F9FAFB',
+    cardBg: '#FFFFFF',
+    title: '#111827',
+    text: '#374151',
+    muted: '#6B7280',
+    isLight: true
+  },
+  monochrome: {
+    name: 'Monocromo Oscuro',
+    primary: '#9CA3AF',
+    background: '#111827',
+    cardBg: '#1F2937',
+    title: '#F9FAFB',
+    text: '#E5E7EB',
+    muted: '#9CA3AF',
+    isLight: false
+  }
+};
+
+const cleanHex = (color) => {
+  if (!color) return 'FFFFFF';
+  return color.replace('#', '');
+};
+
+export function downloadPPTX(data, filename, paletteColors) {
   const pptx = new pptxgen();
 
   pptx.layout = 'LAYOUT_16x9';
 
-  const bgDark = { color: '15111E' };
-  const textTitle = { x: 0.8, y: 1.4, w: 11.7, h: 2.2, fontSize: 34, bold: true, color: 'DDBBFF', fontFace: 'Trebuchet MS' };
-  const textSubtitle = { x: 0.8, y: 3.8, w: 11.7, h: 2.0, fontSize: 16, color: 'A5A0B2', fontFace: 'Arial' };
-  const textFooter = { x: 0.8, y: 6.3, w: 11.7, h: 0.4, fontSize: 9.5, color: '6B6675', fontFace: 'Arial' };
+  const palette = paletteColors || PPTX_PALETTES.galactic;
+
+  const bgCol = cleanHex(palette.background);
+  const cardCol = cleanHex(palette.cardBg);
+  const primaryCol = cleanHex(palette.primary);
+  const titleCol = cleanHex(palette.title);
+  const textCol = cleanHex(palette.text);
+  const mutedCol = cleanHex(palette.muted);
+  const borderCol = primaryCol; // Usamos el acento primario para el borde de tarjetas
+
+  const bgDark = { color: bgCol };
+  const textTitle = { x: 0.8, y: 1.4, w: 11.7, h: 2.2, fontSize: 34, bold: true, color: titleCol, fontFace: 'Trebuchet MS', shrinkText: true };
+  const textSubtitle = { x: 0.8, y: 3.8, w: 11.7, h: 2.0, fontSize: 16, color: mutedCol, fontFace: 'Arial', shrinkText: true };
+  const textFooter = { x: 0.8, y: 6.3, w: 11.7, h: 0.4, fontSize: 9.5, color: mutedCol, fontFace: 'Arial', shrinkText: true };
 
   // Portada
   let s1 = pptx.addSlide();
   s1.background = bgDark;
   
-  s1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.25, h: 7.5, fill: { color: 'AA3BFF' } });
+  s1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.25, h: 7.5, fill: { color: primaryCol } });
   s1.addText(data.title.toUpperCase(), textTitle);
   s1.addText(`INTEGRANTES:\n${data.members}\n\nINSTITUCIÓN:\n${data.institution}\n\nFECHA:\n${data.date}`, textSubtitle);
   s1.addText("DocuGenius Neural AI Presentation System", textFooter);
@@ -884,14 +962,71 @@ export function downloadPPTX(data, filename) {
     if (slideData.num === 1) return;
     
     let s = pptx.addSlide();
-    s.background = bgDark;
+    
+    // Configurar fondo de pantalla de la diapositiva
+    if (slideData.image && slideData.imagePosition === 'background') {
+      if (slideData.image.startsWith('data:')) {
+        s.background = { data: slideData.image };
+      } else {
+        s.background = { path: slideData.image };
+      }
+    } else {
+      s.background = bgDark;
+    }
     
     // Encabezado
-    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.3, h: 0.95, fill: { color: '20192B' } });
-    s.addText(slideData.title, { x: 0.8, y: 0.2, w: 11.5, h: 0.6, fontSize: 22, bold: true, color: 'DDBBFF', fontFace: 'Trebuchet MS' });
-    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0.9, w: 13.3, h: 0.05, fill: { color: 'AA3BFF' } });
+    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.3, h: 0.95, fill: { color: cardCol } });
+    s.addText(slideData.title, { x: 0.8, y: 0.2, w: 11.5, h: 0.6, fontSize: 22, bold: true, color: titleCol, fontFace: 'Trebuchet MS', shrinkText: true });
+    s.addShape(pptx.ShapeType.rect, { x: 0, y: 0.9, w: 13.3, h: 0.05, fill: { color: primaryCol } });
     
     const parsed = parseSlideText(slideData.content);
+    const hasImage = slideData.image && slideData.imagePosition !== 'background';
+    const imgPos = slideData.imagePosition || 'right';
+
+    // 1. Agregar Imagen si está configurada en posición lateral
+    if (hasImage) {
+      const imgOptions = {};
+      if (slideData.image.startsWith('data:')) {
+        imgOptions.data = slideData.image;
+      } else {
+        imgOptions.path = slideData.image;
+      }
+
+      if (imgPos === 'left') {
+        imgOptions.x = 0.8;
+        imgOptions.y = 1.6;
+        imgOptions.w = 5.6;
+        imgOptions.h = 4.4;
+      } else {
+        // right (predeterminado)
+        imgOptions.x = 6.8;
+        imgOptions.y = 1.6;
+        imgOptions.w = 5.6;
+        imgOptions.h = 4.4;
+      }
+      imgOptions.sizing = { type: 'contain', w: 5.6, h: 4.4 };
+      s.addImage(imgOptions);
+    }
+
+    // Definición de coordenadas para el texto según la presencia de imagen
+    let textX = 0.8;
+    let textW = 11.7;
+    let textInnerX = 1.1;
+    let textInnerW = 11.1;
+
+    if (hasImage) {
+      if (imgPos === 'left') {
+        textX = 6.8;
+        textW = 5.6;
+        textInnerX = 7.1;
+        textInnerW = 5.0;
+      } else {
+        textX = 0.8;
+        textW = 5.6;
+        textInnerX = 1.1;
+        textInnerW = 5.0;
+      }
+    }
 
     if (parsed.type === 'table') {
       const lines = parsed.raw.split("\n").filter(l => l.trim().length > 0 && !l.includes("---"));
@@ -900,129 +1035,209 @@ export function downloadPPTX(data, filename) {
         const rows = lines.slice(1).map(r => r.split("|").map(c => c.trim()));
         
         const tableData = [
-          headers.map(h => ({ text: h, options: { bold: true, color: 'FFFFFF', fill: { color: 'AA3BFF' }, align: 'center' } })),
-          ...rows.map(row => row.map(c => ({ text: c, options: { color: 'E5E3EB', fill: { color: '20192B' } } })))
+          headers.map(h => ({ text: h, options: { bold: true, color: 'FFFFFF', fill: { color: primaryCol }, align: 'center', shrinkText: true } })),
+          ...rows.map(row => row.map(c => ({ text: c, options: { color: textCol, fill: { color: cardCol }, shrinkText: true } })))
         ];
         
+        const colW = hasImage
+          ? (headers.length === 2 ? [2.8, 2.8] : [1.8, 1.9, 1.9])
+          : (headers.length === 2 ? [5.8, 5.9] : [3.5, 4.1, 4.1]);
+
         s.addTable(tableData, { 
-          x: 0.8, 
+          x: textX, 
           y: 1.6, 
-          w: 11.7, 
-          colWidths: [3.5, 4.1, 4.1], 
-          border: { type: 'solid', color: '4B3E61', size: 1 } 
+          w: textW, 
+          colWidths: colW, 
+          border: { type: 'solid', color: borderCol, size: 1 } 
         });
       }
     } else if (parsed.type === 'blocks') {
       const blocks = parsed.data;
 
-      if (blocks.length === 2) {
-        // Diseño de 2 Columnas (Left & Right Cards)
-        const leftBlock = blocks[0];
-        const rightBlock = blocks[1];
+      if (hasImage) {
+        // Diseño adaptativo con Imagen:
+        // Si hay 2 bloques de texto, los apilamos verticalmente en el lado opuesto a la imagen
+        if (blocks.length === 2) {
+          blocks.forEach((block, bIdx) => {
+            const cardY = 1.6 + bIdx * 2.3;
+            const cardH = 2.1;
+            const textY = cardY + 0.2;
+            const textH = cardH - 0.4;
 
-        // Tarjeta Izquierda
-        s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: '20192B' }, line: { color: '4B3E61', width: 1 } });
-        
-        const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
-        const leftCount = leftBlock.bullets.length;
-        let leftTitleSize = 18;
-        let leftFontSize = 13;
-        let leftLineSpacing = 20;
+            s.addShape(pptx.ShapeType.rect, { x: textX, y: cardY, w: textW, h: cardH, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+            
+            const bLength = block.bullets.reduce((sum, b) => sum + b.length, 0) + (block.title?.length || 0);
+            const bCount = block.bullets.length;
+            let titleSize = 15;
+            let fontSize = 11.5;
+            let lineSpacing = 16;
+            if (bLength > 200 || bCount > 4) {
+              titleSize = 13;
+              fontSize = 9.5;
+              lineSpacing = 12;
+            }
 
-        if (leftLength > 300 || leftCount > 5) {
-          leftTitleSize = 15;
-          leftFontSize = 10.5;
-          leftLineSpacing = 13;
-        } else if (leftLength > 150 || leftCount > 3) {
-          leftTitleSize = 16.5;
-          leftFontSize = 11.5;
-          leftLineSpacing = 16;
-        }
-
-        const leftTextPara = [];
-        if (leftBlock.title) {
-          leftTextPara.push({ text: leftBlock.title + "\n\n", options: { bold: true, color: 'DDBBFF', fontSize: leftTitleSize, fontFace: 'Trebuchet MS' } });
-        }
-        leftBlock.bullets.forEach((bullet, bIdx) => {
-          const isLast = bIdx === leftBlock.bullets.length - 1;
-          const isBullet = bullet.length > 2;
-          leftTextPara.push({ 
-            text: bullet + (isLast ? "" : "\n"), 
-            options: { color: 'E5E3EB', fontSize: leftFontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: leftLineSpacing } 
+            const textPara = [];
+            if (block.title) {
+              textPara.push({ text: block.title + "\n\n", options: { bold: true, color: titleCol, fontSize: titleSize, fontFace: 'Trebuchet MS' } });
+            }
+            block.bullets.forEach((bullet, bBulletIdx) => {
+              const isLast = bBulletIdx === block.bullets.length - 1;
+              const isBullet = bullet.length > 2;
+              textPara.push({ 
+                text: bullet + (isLast ? "" : "\n"), 
+                options: { color: textCol, fontSize: fontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: lineSpacing } 
+              });
+            });
+            s.addText(textPara, { x: textInnerX, y: textY, w: textInnerW, h: textH, valign: 'top', shrinkText: true });
           });
-        });
-        s.addText(leftTextPara, { x: 1.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top' });
+        } else {
+          // Un solo bloque de texto
+          const mainBlock = blocks[0] || { title: "", bullets: [] };
+          s.addShape(pptx.ShapeType.rect, { x: textX, y: 1.6, w: textW, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
 
-        // Tarjeta Derecha
-        s.addShape(pptx.ShapeType.rect, { x: 6.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: '20192B' }, line: { color: '4B3E61', width: 1 } });
-        
-        const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
-        const rightCount = rightBlock.bullets.length;
-        let rightTitleSize = 18;
-        let rightFontSize = 13;
-        let rightLineSpacing = 20;
+          const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
+          const mainCount = mainBlock.bullets.length;
+          let titleSize = 18;
+          let fontSize = 13;
+          let lineSpacing = 20;
 
-        if (rightLength > 300 || rightCount > 5) {
-          rightTitleSize = 15;
-          rightFontSize = 10.5;
-          rightLineSpacing = 13;
-        } else if (rightLength > 150 || rightCount > 3) {
-          rightTitleSize = 16.5;
-          rightFontSize = 11.5;
-          rightLineSpacing = 16;
-        }
+          if (mainLength > 300 || mainCount > 5) {
+            titleSize = 15;
+            fontSize = 10.5;
+            lineSpacing = 13;
+          } else if (mainLength > 150 || mainCount > 3) {
+            titleSize = 16.5;
+            fontSize = 11.5;
+            lineSpacing = 16;
+          }
 
-        const rightTextPara = [];
-        if (rightBlock.title) {
-          rightTextPara.push({ text: rightBlock.title + "\n\n", options: { bold: true, color: 'DDBBFF', fontSize: rightTitleSize, fontFace: 'Trebuchet MS' } });
-        }
-        rightBlock.bullets.forEach((bullet, bIdx) => {
-          const isLast = bIdx === rightBlock.bullets.length - 1;
-          const isBullet = bullet.length > 2;
-          rightTextPara.push({ 
-            text: bullet + (isLast ? "" : "\n"), 
-            options: { color: 'E5E3EB', fontSize: rightFontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: rightLineSpacing } 
+          const textPara = [];
+          if (mainBlock.title) {
+            textPara.push({ text: mainBlock.title + "\n\n", options: { bold: true, color: titleCol, fontSize: titleSize, fontFace: 'Trebuchet MS' } });
+          }
+          mainBlock.bullets.forEach((bullet, bIdx) => {
+            const isLast = bIdx === mainBlock.bullets.length - 1;
+            const useBullet = bullet.length > 2 && !bullet.includes("Contacto:");
+            textPara.push({ 
+              text: bullet + (isLast ? "" : "\n"), 
+              options: { color: textCol, fontSize: fontSize, fontFace: 'Arial', bullet: useBullet, lineSpacing: lineSpacing } 
+            });
           });
-        });
-        s.addText(rightTextPara, { x: 7.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top' });
 
+          s.addText(textPara, { x: textInnerX, y: 1.8, w: textInnerW, h: 4.0, valign: 'top', shrinkText: true });
+        }
       } else {
-        // Diseño de Tarjeta Única Centrada
-        s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 11.7, h: 4.4, fill: { color: '20192B' }, line: { color: '4B3E61', width: 1 } });
+        // Sin imagen: comportamiento estándar de 1 o 2 columnas de tarjetas
+        if (blocks.length === 2) {
+          // Diseño de 2 Columnas (Left & Right Cards)
+          const leftBlock = blocks[0];
+          const rightBlock = blocks[1];
 
-        const mainBlock = blocks[0] || { title: "", bullets: [] };
-        const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
-        const mainCount = mainBlock.bullets.length;
-        let mainTitleSize = 18;
-        let mainFontSize = 14;
-        let mainLineSpacing = 22;
+          // Tarjeta Izquierda
+          s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+          
+          const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
+          const leftCount = leftBlock.bullets.length;
+          let leftTitleSize = 18;
+          let leftFontSize = 13;
+          let leftLineSpacing = 20;
 
-        if (mainLength > 450 || mainCount > 6) {
-          mainTitleSize = 16;
-          mainFontSize = 11.5;
-          mainLineSpacing = 16;
-        } else if (mainLength > 250 || mainCount > 4) {
-          mainTitleSize = 17;
-          mainFontSize = 12.5;
-          mainLineSpacing = 18;
-        }
+          if (leftLength > 300 || leftCount > 5) {
+            leftTitleSize = 15;
+            leftFontSize = 10.5;
+            leftLineSpacing = 13;
+          } else if (leftLength > 150 || leftCount > 3) {
+            leftTitleSize = 16.5;
+            leftFontSize = 11.5;
+            leftLineSpacing = 16;
+          }
 
-        const textPara = [];
-
-        if (mainBlock.title) {
-          textPara.push({ text: mainBlock.title + "\n\n", options: { bold: true, color: 'DDBBFF', fontSize: mainTitleSize, fontFace: 'Trebuchet MS' } });
-        }
-
-        mainBlock.bullets.forEach((bullet, bIdx) => {
-          const isLast = bIdx === mainBlock.bullets.length - 1;
-          const useBullet = bullet.length > 2 && !bullet.includes("Contacto:");
-          textPara.push({ 
-            text: bullet + (isLast ? "" : "\n"), 
-            options: { color: 'E5E3EB', fontSize: mainFontSize, fontFace: 'Arial', bullet: useBullet, lineSpacing: mainLineSpacing } 
+          const leftTextPara = [];
+          if (leftBlock.title) {
+            leftTextPara.push({ text: leftBlock.title + "\n\n", options: { bold: true, color: titleCol, fontSize: leftTitleSize, fontFace: 'Trebuchet MS' } });
+          }
+          leftBlock.bullets.forEach((bullet, bIdx) => {
+            const isLast = bIdx === leftBlock.bullets.length - 1;
+            const isBullet = bullet.length > 2;
+            leftTextPara.push({ 
+              text: bullet + (isLast ? "" : "\n"), 
+              options: { color: textCol, fontSize: leftFontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: leftLineSpacing } 
+            });
           });
-        });
+          s.addText(leftTextPara, { x: 1.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top', shrinkText: true });
 
-        s.addText(textPara, { x: 1.1, y: 1.8, w: 11.1, h: 4.0, valign: 'top' });
+          // Tarjeta Derecha
+          s.addShape(pptx.ShapeType.rect, { x: 6.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+          
+          const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
+          const rightCount = rightBlock.bullets.length;
+          let rightTitleSize = 18;
+          let rightFontSize = 13;
+          let rightLineSpacing = 20;
+
+          if (rightLength > 300 || rightCount > 5) {
+            rightTitleSize = 15;
+            rightFontSize = 10.5;
+            rightLineSpacing = 13;
+          } else if (rightLength > 150 || rightCount > 3) {
+            rightTitleSize = 16.5;
+            rightFontSize = 11.5;
+            rightLineSpacing = 16;
+          }
+
+          const rightTextPara = [];
+          if (rightBlock.title) {
+            rightTextPara.push({ text: rightBlock.title + "\n\n", options: { bold: true, color: titleCol, fontSize: rightTitleSize, fontFace: 'Trebuchet MS' } });
+          }
+          rightBlock.bullets.forEach((bullet, bIdx) => {
+            const isLast = bIdx === rightBlock.bullets.length - 1;
+            const isBullet = bullet.length > 2;
+            rightTextPara.push({ 
+              text: bullet + (isLast ? "" : "\n"), 
+              options: { color: textCol, fontSize: rightFontSize, fontFace: 'Arial', bullet: isBullet, lineSpacing: rightLineSpacing } 
+            });
+          });
+          s.addText(rightTextPara, { x: 7.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top', shrinkText: true });
+
+        } else {
+          // Diseño de Tarjeta Única Centrada
+          s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 11.7, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+
+          const mainBlock = blocks[0] || { title: "", bullets: [] };
+          const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
+          const mainCount = mainBlock.bullets.length;
+          let mainTitleSize = 18;
+          let mainFontSize = 14;
+          let mainLineSpacing = 22;
+
+          if (mainLength > 450 || mainCount > 6) {
+            mainTitleSize = 16;
+            mainFontSize = 11.5;
+            mainLineSpacing = 16;
+          } else if (mainLength > 250 || mainCount > 4) {
+            mainTitleSize = 17;
+            mainFontSize = 12.5;
+            mainLineSpacing = 18;
+          }
+
+          const textPara = [];
+
+          if (mainBlock.title) {
+            textPara.push({ text: mainBlock.title + "\n\n", options: { bold: true, color: titleCol, fontSize: mainTitleSize, fontFace: 'Trebuchet MS' } });
+          }
+
+          mainBlock.bullets.forEach((bullet, bIdx) => {
+            const isLast = bIdx === mainBlock.bullets.length - 1;
+            const useBullet = bullet.length > 2 && !bullet.includes("Contacto:");
+            textPara.push({ 
+              text: bullet + (isLast ? "" : "\n"), 
+              options: { color: textCol, fontSize: mainFontSize, fontFace: 'Arial', bullet: useBullet, lineSpacing: mainLineSpacing } 
+            });
+          });
+
+          s.addText(textPara, { x: 1.1, y: 1.8, w: 11.1, h: 4.0, valign: 'top', shrinkText: true });
+        }
       }
     }
     

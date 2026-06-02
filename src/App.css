@@ -2857,3 +2857,209 @@ body {
   width: 100%;
   margin: 6px 0;
 }
+
+/* ==========================================================================
+   AI CHART ADVISOR PANEL
+   ========================================================================== */
+.excel-ia-assistant-panel {
+  margin-top: 24px;
+  background: linear-gradient(135deg, #130f22 0%, #1e1538 100%);
+  border: 1.5px solid rgba(170, 59, 255, 0.35);
+  border-radius: 12px;
+  padding: 22px;
+  color: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 15px rgba(170, 59, 255, 0.15);
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.excel-ia-assistant-panel::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(170, 59, 255, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.ia-assistant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ia-assistant-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ia-assistant-title-row h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: linear-gradient(90deg, #ffffff 0%, #d8b4fe 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+}
+
+.ia-assistant-title-row .icon-sparkle {
+  color: #c084fc;
+  filter: drop-shadow(0 0 4px rgba(170, 59, 255, 0.5));
+}
+
+.ia-assistant-recommendation .recommendation-badge {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  color: #f3e8ff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 20px;
+  display: inline-block;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.15);
+}
+
+.ia-assistant-body {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .ia-assistant-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ia-assistant-info {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.ia-justification {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #cbd5e1;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 3.5px solid #a855f7;
+}
+
+.ia-chart-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ia-chart-controls .control-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: 0.2px;
+}
+
+.ia-chart-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.ia-chart-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.ia-chart-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.ia-chart-btn.active {
+  background: linear-gradient(135deg, #aa3bff 0%, #8b5cf6 100%);
+  border-color: #aa3bff;
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(170, 59, 255, 0.4);
+}
+
+.ia-chart-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0d0b14;
+  border: 1.5px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 240px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.ia-chart-container-inner {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Clear and Reset Button Styling */
+.preview-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 14px 24px;
+  background: rgba(15, 10, 28, 0.4);
+  border-top: 1px solid var(--border-color);
+  backdrop-filter: blur(10px);
+}
+
+.btn-clear-all {
+  background: linear-gradient(135deg, #ef4444 0%, #c21d1d 100%);
+  color: #fff;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.2);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-clear-all:hover {
+  background: linear-gradient(135deg, #f05a5a 0%, #d42a2a 100%);
+  box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-clear-all:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+}

@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Upload, 
   FileText, 
-  Image as ImageIcon, 
   FileCode, 
   FileUp, 
   X, 
   CheckCircle2, 
   AlertCircle, 
   Trash2, 
-  RefreshCw, 
-  Clock 
+  RefreshCw 
 } from 'lucide-react';
 import './SubirArchivos.css';
 

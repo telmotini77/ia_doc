@@ -1,7 +1,7 @@
-import React from 'react';
-import { 
-  BookOpen, FileDown, Download, Presentation, FileSpreadsheet, AlertCircle, Sparkles, ChevronLeft, ChevronRight,
-  Upload, Image, Trash2, Plus, ArrowUp, ArrowDown
+import { useState } from 'react';
+import {
+  BookOpen, FileDown, Download, Presentation, FileSpreadsheet, Sparkles, ChevronLeft, ChevronRight,
+  Upload, Trash2, Plus, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { parseSlideText } from '../utils/documentGenerator';
 import { PPTX_PALETTES } from '../utils/exporters';
@@ -23,20 +23,642 @@ export default function DocumentPreview({
   setActiveSlide,
   activeSheet,
   setActiveSheet,
-  selectedCharts,
-  prediction,
   onDownload,
   reportFormat,
   coverLogo,
   coverAlign,
   coverSizes,
   isEditing,
-  setIsEditing,
   setGeneratedData,
   pptxPalette,
   customPptxPalette,
-  presentationStyle
+  onClearAll
 }) {
+  const [activeCharts, setActiveCharts] = useState({
+    hoja2: 'bar',
+    hoja3: 'pie',
+    hoja4: 'bar',
+    hoja5: 'bar',
+    hoja6: 'bar',
+    hoja7: 'bar'
+  });
+
+  const handleChartChange = (sheetKey, chartType) => {
+    setActiveCharts(prev => ({
+      ...prev,
+      [sheetKey]: chartType
+    }));
+  };
+
+  const renderGenericSheet = (sheetKey) => {
+    const sheetData = generatedData[sheetKey];
+    if (!sheetData) return null;
+    const headers = sheetData.headers || [];
+    const rows = sheetData.rows || [];
+
+    return (
+      <table className="excel-table grid">
+        <thead>
+          <tr>
+            {headers.map((h, i) => <th key={i}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rIdx) => (
+            <tr key={rIdx}>
+              {row.map((cell, cIdx) => {
+                if (isEditing) {
+                  return (
+                    <td key={cIdx}>
+                      <input
+                        type="text"
+                        className="edit-grid-input"
+                        value={cell !== null && cell !== undefined ? cell : ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setGeneratedData(prev => {
+                            const newRows = [...prev[sheetKey].rows];
+                            newRows[rIdx] = [...newRows[rIdx]];
+                            const originalVal = prev[sheetKey].rows[rIdx][cIdx];
+                            if (typeof originalVal === 'number') {
+                              const parsedNum = parseFloat(val);
+                              newRows[rIdx][cIdx] = isNaN(parsedNum) ? val : parsedNum;
+                            } else {
+                              newRows[rIdx][cIdx] = val;
+                            }
+                            return {
+                              ...prev,
+                              [sheetKey]: { ...prev[sheetKey], rows: newRows }
+                            };
+                          });
+                        }}
+                      />
+                    </td>
+                  );
+                }
+
+                const header = headers[cIdx] || "";
+                const isPercentageHeader = header.toLowerCase().includes('%');
+                const isCurrencyHeader = header.toLowerCase().includes('$') || header.toLowerCase().includes('costo') || header.toLowerCase().includes('total');
+                
+                let displayVal = cell;
+                if (typeof cell === 'number') {
+                  if (isPercentageHeader) {
+                    displayVal = `${cell.toFixed(1)}%`;
+                  } else if (isCurrencyHeader) {
+                    displayVal = `$${cell.toFixed(2)}`;
+                  } else {
+                    displayVal = cell.toString();
+                  }
+                } else if (typeof cell === 'string') {
+                  displayVal = cell;
+                }
+
+                if (header.toLowerCase() === 'estado') {
+                  const statusClass = String(cell).toLowerCase().includes('completado')
+                    ? 'completed'
+                    : String(cell).toLowerCase().includes('progreso')
+                      ? 'in-progress'
+                      : 'pending';
+                  return <td key={cIdx} className={`status-pill ${statusClass}`}>{cell}</td>;
+                }
+
+                return <td key={cIdx} className={typeof cell === 'number' ? 'num-cell' : ''}>{displayVal}</td>;
+              })}
+            </tr>
+          ))}
+          {sheetData.formulas && sheetData.formulas.label && (
+            <tr className="total-row">
+              <td className="bold-cell">
+                {isEditing ? (
+                  <input
+                    type="text"
+                    className="edit-grid-input"
+                    value={sheetData.formulas.label}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setGeneratedData(prev => ({
+                        ...prev,
+                        [sheetKey]: {
+                          ...prev[sheetKey],
+                          formulas: { ...prev[sheetKey].formulas, label: val }
+                        }
+                      }));
+                    }}
+                  />
+                ) : sheetData.formulas.label}
+              </td>
+              {headers.slice(1, headers.length - 1).map((_, i) => <td key={i}></td>)}
+              <td className="num-cell bold-cell text-purple">
+                {sheetData.formulas.value !== undefined ? (
+                  sheetData.headers[sheetData.headers.length - 1].toLowerCase().includes('$')
+                    ? `$${Number(sheetData.formulas.value).toFixed(2)}`
+                    : sheetData.formulas.value
+                ) : ""}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    );
+  };
+
+  const getAIRecommendation = (sheetKey) => {
+    const sheet = generatedData[sheetKey];
+    const title = (sheet?.titulo || "").toLowerCase();
+    
+    if (title.includes("cronograma") || title.includes("actividad")) {
+      return {
+        type: 'bar',
+        label: 'Gráfico de Barras de Progreso (Gantt)',
+        justification: 'Esta tabla representa un cronograma de actividades. Un gráfico de barras horizontales (tipo Gantt) es la mejor opción para visualizar la duración y el estado de cada tarea.'
+      };
+    }
+    if (title.includes("presupuesto") || title.includes("costo")) {
+      return {
+        type: 'pie',
+        label: 'Diagrama de Pastel (Distribución)',
+        justification: 'Esta tabla detalla un presupuesto de recursos. Un gráfico de pastel (torta) es ideal para visualizar la proporción del presupuesto consumida por cada concepto.'
+      };
+    }
+    if (title.includes("anual") || title.includes("pib") || title.includes("crecimiento")) {
+      return {
+        type: 'bar',
+        label: 'Gráfico de Columnas (Evolución Temporal)',
+        justification: 'Esta tabla muestra variables macroeconómicas anuales. Un gráfico de columnas verticales es la mejor opción para observar tendencias temporales del PIB e inflación.'
+      };
+    }
+    if (title.includes("quinquenal") || title.includes("promedio")) {
+      return {
+        type: 'bar',
+        label: 'Gráfico de Barras Agrupadas',
+        justification: 'Esta tabla compara indicadores promedio por periodo. Un gráfico de columnas o barras agrupadas es ideal para contrastar múltiples variables macroeconómicas simultáneamente.'
+      };
+    }
+    if (title.includes("decada") || title.includes("década")) {
+      return {
+        type: 'bar',
+        label: 'Gráfico de Barras General',
+        justification: 'Esta tabla sintetiza el promedio de toda la década. Un gráfico de barras agrupadas es ideal para visualizar el comportamiento macroeconómico consolidado de este periodo.'
+      };
+    }
+    
+    switch (sheetKey) {
+      case 'hoja2':
+        return {
+          type: 'bar',
+          label: 'Gráfico de Barras de Progreso (Gantt)',
+          justification: 'Esta tabla representa un cronograma de actividades. Un gráfico de barras horizontales (tipo Gantt) es la mejor opción para visualizar la duración y el estado de cada tarea.'
+        };
+      case 'hoja3':
+        return {
+          type: 'pie',
+          label: 'Diagrama de Pastel (Distribución)',
+          justification: 'Esta tabla detalla un presupuesto de recursos. Un gráfico de pastel (torta) es ideal para visualizar la proporción del presupuesto consumida por cada concepto.'
+        };
+      case 'hoja4':
+        return {
+          type: 'bar',
+          label: 'Gráfico de Barras Agrupadas',
+          justification: 'Esta tabla detalla objetivos y resultados cualitativos o cuantitativos. Un gráfico de barras es la forma más estructurada para comparar el avance operativo de cada variable.'
+        };
+      case 'hoja5':
+        return {
+          type: 'bar',
+          label: 'Gráfico de Comparación (Meta vs Real)',
+          justification: 'Esta tabla contiene métricas de KPIs con metas y logros. Un gráfico de barras agrupadas es óptimo para contrastar visualmente el valor planificado frente al obtenido.'
+        };
+      case 'hoja6':
+        return {
+          type: 'bar',
+          label: 'Gráfico de Barras Comparativo',
+          justification: 'Esta tabla contiene la comparación de variables de metas y mediciones reales. Un gráfico de barras es la mejor opción para contrastar la desviación en cada fase.'
+        };
+      case 'hoja7':
+        return {
+          type: 'bar',
+          label: 'Gráfico de Hitos Temporales',
+          justification: 'Esta tabla es un registro histórico de entregables con fechas. Un gráfico de barras horizontales o hitos temporales es el más indicado para seguir la velocidad y frecuencia de entrega de evidencias.'
+        };
+      default:
+        return {
+          type: 'bar',
+          label: 'Gráfico de Barras',
+          justification: 'Un gráfico de barras es la representación por defecto para comparar datos categóricos de manera legible.'
+        };
+    }
+  };
+
+  const renderSVGChart = (sheetKey, chartType) => {
+    const sheetData = generatedData[sheetKey];
+    if (!sheetData || !sheetData.rows || sheetData.rows.length === 0) {
+      return <div style={{ color: '#aaa', fontSize: '12px' }}>Sin datos disponibles para graficar.</div>;
+    }
+
+    const rows = sheetData.rows;
+    const headers = sheetData.headers || [];
+    
+    const isCronograma = (sheetData.titulo || "").toLowerCase().includes("cronograma");
+    const isPresupuesto = (sheetData.titulo || "").toLowerCase().includes("presupuesto");
+    
+    const colors = ['#AA3BFF', '#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#EC4899'];
+    const statusColors = {
+      'Completado': '#10B981',
+      'En Progreso': '#F59E0B',
+      'Pendiente': '#6B7280'
+    };
+
+    if (isPresupuesto && sheetKey === 'hoja3') {
+      const labels = rows.map(r => r[0] || "");
+      const values = rows.map(r => Number(r[3]) || 0);
+      const total = values.reduce((s, v) => s + v, 0);
+
+      if (total === 0) return <div style={{ color: '#aaa', fontSize: '12px' }}>El presupuesto total es $0.00</div>;
+
+      if (chartType === 'pie') {
+        let currentAngle = 0;
+        return (
+          <svg width="340" height="220" viewBox="0 0 340 220">
+            <g>
+              {values.slice(0, 5).map((val, idx) => {
+                const angle = (val / total) * 360;
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + angle;
+                currentAngle = endAngle;
+
+                const cx = 100, cy = 110, r = 65, ir = 38;
+                const rad = Math.PI / 180;
+                const offset = -90;
+
+                const x1 = cx + r * Math.cos((startAngle + offset) * rad);
+                const y1 = cy + r * Math.sin((startAngle + offset) * rad);
+                const x2 = cx + r * Math.cos((endAngle + offset) * rad);
+                const y2 = cy + r * Math.sin((endAngle + offset) * rad);
+
+                const ix1 = cx + ir * Math.cos((endAngle + offset) * rad);
+                const iy1 = cy + ir * Math.sin((endAngle + offset) * rad);
+                const ix2 = cx + ir * Math.cos((startAngle + offset) * rad);
+                const iy2 = cy + ir * Math.sin((startAngle + offset) * rad);
+
+                const largeArcFlag = angle <= 180 ? 0 : 1;
+                const pathData = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ir} ${ir} 0 ${largeArcFlag} 0 ${ix2} ${iy2} Z`;
+
+                const labelText = labels[idx].length > 15 ? labels[idx].substring(0, 15) + '...' : labels[idx];
+                return (
+                  <g key={idx}>
+                    <path d={pathData} fill={colors[idx % colors.length]} stroke="#1e1b29" strokeWidth="1" />
+                    <rect x="180" y={30 + idx * 28} width="10" height="10" rx="2" fill={colors[idx % colors.length]} />
+                    <text x="198" y={39 + idx * 28} fill="#fff" fontSize="10" fontWeight="600">
+                      {labelText}: ${val.toFixed(2)}
+                    </text>
+                  </g>
+                );
+              })}
+              <circle cx="100" cy="110" r="28" fill="#1e1b29" />
+              <text x="100" y="114" textAnchor="middle" fill="#aaa" fontSize="9" fontWeight="800">
+                Costos
+              </text>
+            </g>
+          </svg>
+        );
+      } else {
+        const maxVal = Math.max(...values, 1);
+        return (
+          <svg width="340" height="220" viewBox="0 0 340 220">
+            <line x1="45" y1="40" x2="310" y2="40" stroke="#2e2b38" strokeDasharray="3,3" />
+            <line x1="45" y1="90" x2="310" y2="90" stroke="#2e2b38" strokeDasharray="3,3" />
+            <line x1="45" y1="140" x2="310" y2="140" stroke="#2e2b38" strokeDasharray="3,3" />
+            <line x1="45" y1="190" x2="310" y2="190" stroke="#555" strokeWidth="1.5" />
+
+            <text x="35" y="44" fill="#888" fontSize="8" textAnchor="end">${maxVal.toFixed(0)}</text>
+            <text x="35" y="94" fill="#888" fontSize="8" textAnchor="end">${(maxVal * 0.66).toFixed(0)}</text>
+            <text x="35" y="144" fill="#888" fontSize="8" textAnchor="end">${(maxVal * 0.33).toFixed(0)}</text>
+            <text x="35" y="194" fill="#888" fontSize="8" textAnchor="end">$0</text>
+
+            {chartType === 'bar' ? (
+              rows.slice(0, 5).map((row, idx) => {
+                const val = Number(row[3]) || 0;
+                const h = (val / maxVal) * 150;
+                const xStart = 50 + idx * 52;
+                const labelText = row[0].substring(0, 8);
+                return (
+                  <g key={idx}>
+                    <rect x={xStart + 6} y={190 - h} width="24" height={h} fill={colors[idx % colors.length]} rx="1.5" />
+                    <text x={xStart + 18} y="205" fill="#aaa" fontSize="8" textAnchor="middle" fontWeight="bold">
+                      {labelText}
+                    </text>
+                  </g>
+                );
+              })
+            ) : (
+              (() => {
+                const points = rows.slice(0, 5).map((row, idx) => ({
+                  x: 65 + idx * 52,
+                  y: 190 - ((Number(row[3]) || 0) / maxVal) * 150
+                }));
+                const path = points.reduce((str, p, i) => `${str}${i === 0 ? 'M' : 'L'} ${p.x} ${p.y} `, '');
+                return (
+                  <g>
+                    <path d={path} fill="none" stroke="#AA3BFF" strokeWidth="2" />
+                    {points.map((p, idx) => (
+                      <g key={idx}>
+                        <circle cx={p.x} cy={p.y} r="3.5" fill="#10B981" stroke="#1e1b29" strokeWidth="1" />
+                        <text x={p.x} y={p.y - 7} fill="#fff" fontSize="8" fontWeight="bold" textAnchor="middle">
+                          ${values[idx].toFixed(0)}
+                        </text>
+                        <text x={p.x} y="205" fill="#aaa" fontSize="8" textAnchor="middle" fontWeight="bold">
+                          {labels[idx].substring(0, 8)}
+                        </text>
+                      </g>
+                    ))}
+                  </g>
+                );
+              })()
+            )}
+          </svg>
+        );
+      }
+    } else if (isCronograma && sheetKey === 'hoja2') {
+      const statuses = rows.map(r => r[4] || "Pendiente");
+      const statusCounts = {};
+      statuses.forEach(s => {
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+      });
+
+      const labels = Object.keys(statusCounts);
+      const values = Object.values(statusCounts);
+      const total = values.reduce((s, v) => s + v, 0);
+
+      if (chartType === 'pie') {
+        let currentAngle = 0;
+        return (
+          <svg width="340" height="220" viewBox="0 0 340 220">
+            <g>
+              {labels.map((lbl, idx) => {
+                const val = statusCounts[lbl];
+                const angle = (val / total) * 360;
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + angle;
+                currentAngle = endAngle;
+
+                const cx = 100, cy = 110, r = 65, ir = 38;
+                const rad = Math.PI / 180;
+                const offset = -90;
+
+                const x1 = cx + r * Math.cos((startAngle + offset) * rad);
+                const y1 = cy + r * Math.sin((startAngle + offset) * rad);
+                const x2 = cx + r * Math.cos((endAngle + offset) * rad);
+                const y2 = cy + r * Math.sin((endAngle + offset) * rad);
+
+                const ix1 = cx + ir * Math.cos((endAngle + offset) * rad);
+                const iy1 = cy + ir * Math.sin((endAngle + offset) * rad);
+                const ix2 = cx + ir * Math.cos((startAngle + offset) * rad);
+                const iy2 = cx + ir * Math.cos((startAngle + offset) * rad);
+
+                const largeArcFlag = angle <= 180 ? 0 : 1;
+                const pathData = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ir} ${ir} 0 ${largeArcFlag} 0 ${ix2} ${iy2} Z`;
+
+                const color = statusColors[lbl] || colors[idx % colors.length];
+                return (
+                  <g key={idx}>
+                    <path d={pathData} fill={color} stroke="#1e1b29" strokeWidth="1" />
+                    <rect x="180" y={50 + idx * 30} width="12" height="12" rx="2.5" fill={color} />
+                    <text x="200" y={60 + idx * 30} fill="#fff" fontSize="11" fontWeight="600">
+                      {lbl}: {val} tarea{val > 1 ? 's' : ''}
+                    </text>
+                  </g>
+                );
+              })}
+              <circle cx="100" cy="110" r="28" fill="#1e1b29" />
+              <text x="100" y="114" textAnchor="middle" fill="#aaa" fontSize="8" fontWeight="800">
+                Estado
+              </text>
+            </g>
+          </svg>
+        );
+      } else {
+        const progressValues = rows.slice(0, 5).map(r => {
+          const s = r[4] || "Pendiente";
+          return s === 'Completado' ? 100 : s === 'En Progreso' ? 50 : 10;
+        });
+        const taskLabels = rows.slice(0, 5).map(r => r[0] || "");
+
+        return (
+          <svg width="340" height="220" viewBox="0 0 340 220">
+            <text x="80" y="25" fill="#888" fontSize="8" textAnchor="middle">Inicio</text>
+            <text x="280" y="25" fill="#888" fontSize="8" textAnchor="middle">Fin</text>
+            <line x1="80" y1="32" x2="280" y2="32" stroke="#555" strokeWidth="1.5" />
+
+            {taskLabels.map((lbl, idx) => {
+              const progress = progressValues[idx];
+              const yStart = 40 + idx * 32;
+              const shortLabel = lbl.length > 18 ? lbl.substring(0, 18) + '...' : lbl;
+              const color = progress === 100 ? '#10B981' : progress === 50 ? '#F59E0B' : '#6B7280';
+              return (
+                <g key={idx}>
+                  <text x="70" y={yStart + 11} fill="#aaa" fontSize="8" textAnchor="end" fontWeight="bold">
+                    {shortLabel}
+                  </text>
+                  <rect x="80" y={yStart} width="200" height="13" rx="3" fill="#2d2a3a" />
+                  <rect x="80" y={yStart} width={(progress / 100) * 200} height="13" rx="3" fill={color} />
+                  <text x={80 + (progress / 100) * 200 - 15 > 90 ? 80 + (progress / 100) * 200 - 15 : 95} y={yStart + 10} fill="#fff" fontSize="8.5" fontWeight="bold">
+                    {progress}%
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        );
+      }
+    } else {
+      // Dynamic generic sheets plotting! (e.g. for macroeconomics)
+      const xLabels = rows.map(r => String(r[0] || ""));
+      
+      const numCols = [];
+      headers.forEach((h, colIdx) => {
+        if (colIdx > 0) {
+          const hasNum = rows.some(r => {
+            const val = r[colIdx];
+            return typeof val === 'number' || (!isNaN(parseFloat(val)) && isFinite(val));
+          });
+          if (hasNum) {
+            numCols.push({ idx: colIdx, name: h });
+          }
+        }
+      });
+      
+      if (numCols.length === 0) {
+        return <div style={{ color: '#aaa', fontSize: '12px' }}>Sin datos numéricos para graficar.</div>;
+      }
+      
+      if (chartType === 'pie') {
+        let targetColIdx = numCols[0].idx;
+        let targetColName = numCols[0].name;
+        
+        // Prefer plotting Unemployment ("desempleo") or real columns
+        const specialCol = numCols.find(c => c.name.toLowerCase().includes("desempleo") || c.name.toLowerCase().includes("real"));
+        if (specialCol) {
+          targetColIdx = specialCol.idx;
+          targetColName = specialCol.name;
+        }
+        
+        const values = rows.map(r => Math.abs(parseFloat(r[targetColIdx])) || 0);
+        const total = values.reduce((s, v) => s + v, 0);
+        
+        if (total === 0) {
+          return <div style={{ color: '#aaa', fontSize: '12px' }}>Los valores de la columna son $0.00</div>;
+        }
+        
+        let currentAngle = 0;
+        return (
+          <svg width="340" height="220" viewBox="0 0 340 220">
+            <g>
+              {values.slice(0, 10).map((val, idx) => {
+                const angle = (val / total) * 360;
+                const startAngle = currentAngle;
+                const endAngle = currentAngle + angle;
+                currentAngle = endAngle;
+
+                const cx = 100, cy = 110, r = 65, ir = 38;
+                const rad = Math.PI / 180;
+                const offset = -90;
+
+                const x1 = cx + r * Math.cos((startAngle + offset) * rad);
+                const y1 = cy + r * Math.sin((startAngle + offset) * rad);
+                const x2 = cx + r * Math.cos((endAngle + offset) * rad);
+                const y2 = cy + r * Math.sin((endAngle + offset) * rad);
+
+                const ix1 = cx + ir * Math.cos((endAngle + offset) * rad);
+                const iy1 = cy + ir * Math.sin((endAngle + offset) * rad);
+                const ix2 = cx + ir * Math.cos((startAngle + offset) * rad);
+                const iy2 = cx + ir * Math.cos((startAngle + offset) * rad);
+
+                const largeArcFlag = angle <= 180 ? 0 : 1;
+                const pathData = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ir} ${ir} 0 ${largeArcFlag} 0 ${ix2} ${iy2} Z`;
+
+                const labelText = xLabels[idx] || "";
+                const shortLabel = labelText.length > 10 ? labelText.substring(0, 10) + '...' : labelText;
+                
+                return (
+                  <g key={idx}>
+                    <path d={pathData} fill={colors[idx % colors.length]} stroke="#1e1b29" strokeWidth="1" />
+                    {idx < 6 && (
+                      <g>
+                        <rect x="180" y={22 + idx * 24} width="8" height="8" rx="1.5" fill={colors[idx % colors.length]} />
+                        <text x="194" y={30 + idx * 24} fill="#fff" fontSize="9" fontWeight="600">
+                          {shortLabel}: {val.toFixed(1)}%
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+              <circle cx="100" cy="110" r="28" fill="#1e1b29" />
+              <text x="100" y="112" textAnchor="middle" fill="#aaa" fontSize="8" fontWeight="800">
+                {targetColName.substring(0, 12)}
+              </text>
+            </g>
+          </svg>
+        );
+      } else {
+        const colsToPlot = numCols.slice(0, 3);
+        const allValues = rows.flatMap(r => colsToPlot.map(c => parseFloat(r[c.idx]) || 0));
+        let maxVal = Math.max(...allValues, 1);
+        const minVal = Math.min(...allValues, 0);
+        const range = maxVal - minVal;
+        
+        const getY = (val) => 170 - ((val - minVal) / (range || 1)) * 130;
+        const zeroY = getY(0);
+
+        return (
+          <svg width="340" height="220" viewBox="0 0 340 220">
+            <line x1="45" y1="40" x2="310" y2="40" stroke="#2e2b38" strokeDasharray="3,3" />
+            <line x1="45" y1="105" x2="310" y2="105" stroke="#2e2b38" strokeDasharray="3,3" />
+            <line x1="45" y1="170" x2="310" y2="170" stroke="#2e2b38" strokeDasharray="3,3" />
+            <line x1="45" y1={zeroY} x2="310" y2={zeroY} stroke="#777" strokeWidth="1.5" />
+
+            <text x="35" y="44" fill="#888" fontSize="8" textAnchor="end">{maxVal.toFixed(1)}%</text>
+            <text x="35" y="109" fill="#888" fontSize="8" textAnchor="end">{((maxVal + minVal) / 2).toFixed(1)}%</text>
+            <text x="35" y="174" fill="#888" fontSize="8" textAnchor="end">{minVal.toFixed(1)}%</text>
+
+            {chartType === 'bar' ? (
+              rows.slice(0, 10).map((row, rIdx) => {
+                const groupWidth = 24;
+                const step = 260 / Math.min(rows.length, 10);
+                const xStart = 50 + rIdx * step;
+                
+                return (
+                  <g key={rIdx}>
+                    {colsToPlot.map((col, cIdx) => {
+                      const val = parseFloat(row[col.idx]) || 0;
+                      const yVal = getY(val);
+                      const barH = Math.abs(zeroY - yVal);
+                      const barY = val >= 0 ? yVal : zeroY;
+                      const colW = groupWidth / colsToPlot.length;
+                      const colX = xStart + cIdx * colW;
+                      
+                      return (
+                        <rect 
+                          key={cIdx} 
+                          x={colX} 
+                          y={barY} 
+                          width={colW - 0.5} 
+                          height={Math.max(barH, 1)} 
+                          fill={colors[cIdx % colors.length]} 
+                          rx="0.5" 
+                        />
+                      );
+                    })}
+                    <text x={xStart + groupWidth / 2} y="185" fill="#aaa" fontSize="7" textAnchor="middle" fontWeight="bold">
+                      {String(row[0]).substring(2, 4) || row[0]}
+                    </text>
+                  </g>
+                );
+              })
+            ) : (
+              <g>
+                {colsToPlot.map((col, cIdx) => {
+                  const points = rows.slice(0, 10).map((row, rIdx) => ({
+                    x: 60 + rIdx * (230 / (Math.min(rows.length, 10) - 1 || 1)),
+                    y: getY(parseFloat(row[col.idx]) || 0)
+                  }));
+                  const path = points.reduce((str, p, i) => `${str}${i === 0 ? 'M' : 'L'} ${p.x} ${p.y} `, '');
+                  
+                  return (
+                    <g key={cIdx}>
+                      <path d={path} fill="none" stroke={colors[cIdx % colors.length]} strokeWidth="1.5" />
+                      {points.map((p, pIdx) => (
+                        <circle key={pIdx} cx={p.x} cy={p.y} r="2.5" fill={colors[cIdx % colors.length]} stroke="#1e1b29" strokeWidth="1" />
+                      ))}
+                    </g>
+                  );
+                })}
+                {rows.slice(0, 10).map((row, rIdx) => {
+                  const x = 60 + rIdx * (230 / (Math.min(rows.length, 10) - 1 || 1));
+                  return (
+                    <text key={rIdx} x={x} y="185" fill="#aaa" fontSize="7" textAnchor="middle" fontWeight="bold">
+                      {String(row[0]).substring(2, 4) || row[0]}
+                    </text>
+                  );
+                })}
+              </g>
+            )}
+            
+            {/* Legend */}
+            <g transform="translate(45, 198)">
+              {colsToPlot.map((col, cIdx) => (
+                <g key={cIdx} transform={`translate(${cIdx * 90}, 0)`}>
+                  <rect x="0" y="-6" width="6" height="6" rx="1" fill={colors[cIdx % colors.length]} />
+                  <text x="10" y="0" fill="#fff" fontSize="8">{col.name.substring(0, 12)}</text>
+                </g>
+              ))}
+            </g>
+          </svg>
+        );
+      }
+    }
+  };
+
   const handleAddSlide = () => {
     if (!generatedData || !generatedData.slides) return;
     const newSlides = [...generatedData.slides];
@@ -110,7 +732,7 @@ export default function DocumentPreview({
         <div className="preview-title-block">
           <h2><BookOpen size={16} /> Previsualización</h2>
         </div>
-        
+
         {generatedData && !loading && (
           <div className="preview-actions animate-fade-in">
             {(docType === 'report' || docType === 'petition' || docType === 'response') && (
@@ -131,9 +753,17 @@ export default function DocumentPreview({
             )}
 
             {docType === 'spreadsheet' && (
-              <button type="button" className="btn-action xlsx" onClick={() => onDownload('excel')}>
-                <FileSpreadsheet size={14} /> Excel (.xlsx)
-              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button type="button" className="btn-action xlsx" onClick={() => onDownload('excel-xlsx')}>
+                  <FileSpreadsheet size={14} /> Excel (.xlsx)
+                </button>
+                <button type="button" className="btn-action xlsx" style={{ background: '#107c41' }} onClick={() => onDownload('excel-xls')}>
+                  <FileSpreadsheet size={14} /> Excel 97-2003 (.xls)
+                </button>
+                <button type="button" className="btn-action xlsx" style={{ background: '#0284c7' }} onClick={() => onDownload('csv')}>
+                  <FileSpreadsheet size={14} /> CSV (.csv)
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -153,12 +783,12 @@ export default function DocumentPreview({
             <p>La inteligencia artificial está estructurando y redactando los bloques de información...</p>
           </div>
         ) : generatedData ? (
-          
+
           <div className="canvas-content animate-fade-in">
-            
+
             {/* TYPE A: Report Preview */}
             {docType === 'report' && (
-              <div 
+              <div
                 className="preview-report"
                 style={{
                   '--page-margin': (reportFormat?.margin === '2.54' ? '2.54cm' : '2.00cm'),
@@ -172,7 +802,7 @@ export default function DocumentPreview({
               >
                 <div className="pdf-page cover-page">
                   {coverAlign !== 'center' && <div className="cover-stripe"></div>}
-                  <div 
+                  <div
                     className="cover-details"
                     style={{
                       textAlign: coverAlign || 'left',
@@ -188,22 +818,22 @@ export default function DocumentPreview({
                         <img src={coverLogo} alt="Logo" className="cover-logo-img" style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }} />
                       </div>
                     )}
-                    
+
                     {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="edit-input" 
-                        style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '20px' }} 
-                        value={generatedData.title} 
+                      <input
+                        type="text"
+                        className="edit-input"
+                        style={{ fontSize: '20px', fontWeight: 'bold', marginTop: '20px' }}
+                        value={generatedData.title}
                         onChange={(e) => {
                           const val = e.target.value;
                           setGeneratedData(prev => ({ ...prev, title: val }));
                         }}
                       />
                     ) : (
-                      <h1 
-                        className="cover-title" 
-                        style={{ 
+                      <h1
+                        className="cover-title"
+                        style={{
                           marginTop: coverLogo ? '10px' : '40px',
                           fontSize: coverSizes?.title ? `${coverSizes.title}px` : '24px',
                           textAlign: coverAlign || 'left',
@@ -215,8 +845,8 @@ export default function DocumentPreview({
                         {generatedData.title}
                       </h1>
                     )}
-                    
-                    <p 
+
+                    <p
                       className="cover-subtitle"
                       style={{
                         fontSize: '13px',
@@ -227,10 +857,10 @@ export default function DocumentPreview({
                     >
                       ESTUDIO DE CASO
                     </p>
-                    
-                    <div 
-                      className="cover-meta" 
-                      style={{ 
+
+                    <div
+                      className="cover-meta"
+                      style={{
                         marginTop: '40px',
                         width: '100%',
                         textAlign: coverAlign || 'left',
@@ -289,16 +919,16 @@ export default function DocumentPreview({
                         </>
                       )}
                     </div>
-                    
+
                     {isEditing ? (
                       <input type="text" className="edit-input" style={{ width: '200px', marginTop: '30px' }} value={generatedData.date || ''} onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({ ...prev, date: val }));
                       }} />
                     ) : (
-                      <p 
-                        className="cover-date" 
-                        style={{ 
+                      <p
+                        className="cover-date"
+                        style={{
                           marginTop: '50px',
                           fontSize: coverSizes?.date ? `${coverSizes.date}px` : '11.5px',
                           width: '100%',
@@ -314,12 +944,12 @@ export default function DocumentPreview({
                 <div className="pdf-page">
                   <div className="page-number-top-right">2</div>
                   <h2 className="section-title">Primera Parte: Antecedentes</h2>
-                  
+
                   <h3>Introducción</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.primeraParte.introduccion} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.primeraParte.introduccion}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -331,12 +961,12 @@ export default function DocumentPreview({
                   ) : (
                     <p>{generatedData.primeraParte.introduccion}</p>
                   )}
-                  
+
                   <h3>Antecedente</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.primeraParte.antecedente} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.primeraParte.antecedente}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -351,9 +981,9 @@ export default function DocumentPreview({
 
                   <h3>Definición del Problema</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.primeraParte.definicionProblema} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.primeraParte.definicionProblema}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -368,9 +998,9 @@ export default function DocumentPreview({
 
                   <h3>Justificación del Estudio</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.primeraParte.justificacion} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.primeraParte.justificacion}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -386,10 +1016,10 @@ export default function DocumentPreview({
                   <h3>Objetivos del Estudio de Caso</h3>
                   <h4>Objetivo General</h4>
                   {isEditing ? (
-                    <input 
-                      type="text" 
-                      className="edit-input" 
-                      value={generatedData.primeraParte.objetivos.general} 
+                    <input
+                      type="text"
+                      className="edit-input"
+                      value={generatedData.primeraParte.objetivos.general}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -404,12 +1034,12 @@ export default function DocumentPreview({
                   ) : (
                     <p>{generatedData.primeraParte.objetivos.general}</p>
                   )}
-                  
+
                   <h4>Objetivos Específicos</h4>
                   {isEditing ? (
                     <div className="edit-list">
                       {generatedData.primeraParte.objetivos.especificos.map((obj, i) => (
-                        <input 
+                        <input
                           key={i}
                           type="text"
                           className="edit-input"
@@ -443,12 +1073,12 @@ export default function DocumentPreview({
                 <div className="pdf-page">
                   <div className="page-number-top-right">3</div>
                   <h2 className="section-title">Segunda Parte: Desarrollo</h2>
-                  
+
                   <h3>Marco Conceptual</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.segundaParte.marcoConceptual} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.segundaParte.marcoConceptual}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -464,9 +1094,9 @@ export default function DocumentPreview({
 
                   <h3>Marco Metodológico</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.segundaParte.marcoMetodologico} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.segundaParte.marcoMetodologico}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -482,9 +1112,9 @@ export default function DocumentPreview({
 
                   <h3>Resultados Obtenidos</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.segundaParte.resultadosObtenidos} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.segundaParte.resultadosObtenidos}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -499,9 +1129,9 @@ export default function DocumentPreview({
 
                   <h3>Análisis de Resultados</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.segundaParte.analisisResultados} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.segundaParte.analisisResultados}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -518,12 +1148,12 @@ export default function DocumentPreview({
                 <div className="pdf-page">
                   <div className="page-number-top-right">4</div>
                   <h2 className="section-title">Tercera Parte: Conclusiones y Recomendaciones</h2>
-                  
+
                   <h3>Conclusiones</h3>
                   {isEditing ? (
                     <div className="edit-list">
                       {generatedData.terceraParte.conclusiones.map((c, i) => (
-                        <textarea 
+                        <textarea
                           key={i}
                           className="edit-textarea"
                           value={c}
@@ -550,7 +1180,7 @@ export default function DocumentPreview({
                   {isEditing ? (
                     <div className="edit-list">
                       {generatedData.terceraParte.recomendaciones.map((r, i) => (
-                        <textarea 
+                        <textarea
                           key={i}
                           className="edit-textarea"
                           value={r}
@@ -577,12 +1207,12 @@ export default function DocumentPreview({
                 <div className="pdf-page">
                   <div className="page-number-top-right">5</div>
                   <h2 className="section-title">Cuarta Parte</h2>
-                  
+
                   <h3>Referencias</h3>
                   {isEditing ? (
                     <div className="edit-list">
                       {generatedData.cuartaParte.referencias.map((ref, i) => (
-                        <input 
+                        <input
                           key={i}
                           type="text"
                           className="edit-input"
@@ -608,9 +1238,9 @@ export default function DocumentPreview({
 
                   <h3>Anexos</h3>
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.cuartaParte.anexos} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.cuartaParte.anexos}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -626,7 +1256,7 @@ export default function DocumentPreview({
                 </div>
               </div>
             )}
-                 {/* TYPE B: Presentation Preview */}
+            {/* TYPE B: Presentation Preview */}
             {docType === 'presentation' && (() => {
               const activePalette = pptxPalette === 'custom' ? customPptxPalette : PPTX_PALETTES[pptxPalette || 'galactic'];
               const styleVars = {
@@ -651,15 +1281,15 @@ export default function DocumentPreview({
                   <div className="slideshow-container">
                     <div className="slide-card animate-fade-in" key={activeSlide} style={slideCardStyle}>
                       <div className="slide-side-accent" style={{ background: 'var(--slide-primary)' }}></div>
-                      
+
                       {isEditing ? (
                         <div className="slide-body-content" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', boxSizing: 'border-box' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Título de Diapositiva</label>
-                            <input 
-                              type="text" 
-                              className="edit-input" 
-                              value={slideData.title} 
+                            <input
+                              type="text"
+                              className="edit-input"
+                              value={slideData.title}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setGeneratedData(prev => {
@@ -670,12 +1300,12 @@ export default function DocumentPreview({
                               }}
                             />
                           </div>
-                          
+
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexGrow: 1 }}>
                             <label style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Contenido (use viñetas o líneas separadas por saltos de línea)</label>
-                            <textarea 
-                              className="edit-textarea" 
-                              value={slideData.content} 
+                            <textarea
+                              className="edit-textarea"
+                              value={slideData.content}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setGeneratedData(prev => {
@@ -695,9 +1325,9 @@ export default function DocumentPreview({
                               <label className="premium-btn btn-settings" style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', margin: 0 }}>
                                 <Upload size={14} />
                                 <span>Subir Local</span>
-                                <input 
-                                  type="file" 
-                                  accept="image/*" 
+                                <input
+                                  type="file"
+                                  accept="image/*"
                                   style={{ display: 'none' }}
                                   onChange={(e) => {
                                     const file = e.target.files[0];
@@ -706,8 +1336,8 @@ export default function DocumentPreview({
                                       reader.onload = (uploadEvent) => {
                                         setGeneratedData(prev => {
                                           const newSlides = [...prev.slides];
-                                          newSlides[activeSlide] = { 
-                                            ...newSlides[activeSlide], 
+                                          newSlides[activeSlide] = {
+                                            ...newSlides[activeSlide],
                                             image: uploadEvent.target.result,
                                             imagePosition: newSlides[activeSlide].imagePosition || 'right'
                                           };
@@ -721,7 +1351,7 @@ export default function DocumentPreview({
                               </label>
 
                               <div style={{ flexGrow: 1, minWidth: '150px' }}>
-                                <input 
+                                <input
                                   type="text"
                                   className="premium-input"
                                   placeholder="O pegue URL de imagen..."
@@ -731,8 +1361,8 @@ export default function DocumentPreview({
                                     const val = e.target.value;
                                     setGeneratedData(prev => {
                                       const newSlides = [...prev.slides];
-                                      newSlides[activeSlide] = { 
-                                        ...newSlides[activeSlide], 
+                                      newSlides[activeSlide] = {
+                                        ...newSlides[activeSlide],
                                         image: val || undefined,
                                         imagePosition: newSlides[activeSlide].imagePosition || 'right'
                                       };
@@ -741,7 +1371,7 @@ export default function DocumentPreview({
                                   }}
                                 />
                               </div>
-                              
+
                               {slideData.image && (
                                 <select
                                   className="premium-select"
@@ -770,8 +1400,8 @@ export default function DocumentPreview({
                                   onClick={() => {
                                     setGeneratedData(prev => {
                                       const newSlides = [...prev.slides];
-                                      newSlides[activeSlide] = { 
-                                        ...newSlides[activeSlide], 
+                                      newSlides[activeSlide] = {
+                                        ...newSlides[activeSlide],
                                         image: undefined,
                                         imagePosition: undefined
                                       };
@@ -783,13 +1413,13 @@ export default function DocumentPreview({
                                 </button>
                               )}
                             </div>
-                            
+
                             {slideData.image && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                                <img 
-                                  src={slideData.image} 
-                                  alt="Preview Mini" 
-                                  style={{ height: '28px', width: 'auto', borderRadius: '4px', border: '1px solid var(--border-color)', objectFit: 'contain' }} 
+                                <img
+                                  src={slideData.image}
+                                  alt="Preview Mini"
+                                  style={{ height: '28px', width: 'auto', borderRadius: '4px', border: '1px solid var(--border-color)', objectFit: 'contain' }}
                                 />
                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                   Imagen cargada ({slideData.imagePosition === 'background' ? 'Fondo de diapositiva' : `Ubicación: ${slideData.imagePosition === 'left' ? 'Izquierda' : 'Derecha'}`})
@@ -815,7 +1445,7 @@ export default function DocumentPreview({
                                 <span className="slide-num">Slide {slideData.num}</span>
                                 <h2>{slideData.title}</h2>
                               </div>
-                              
+
                               {(() => {
                                 const parsed = parseSlideText(slideData.content);
                                 const hasImage = slideData.image && slideData.imagePosition !== 'background';
@@ -924,7 +1554,7 @@ export default function DocumentPreview({
                                     if (blocks.length === 2) {
                                       const leftBlock = blocks[0];
                                       const rightBlock = blocks[1];
-      
+
                                       const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
                                       const leftCount = leftBlock.bullets.length;
                                       let leftFontSize = '12px';
@@ -935,7 +1565,7 @@ export default function DocumentPreview({
                                         leftTitleSize = '12px';
                                         leftGap = '4px';
                                       }
-      
+
                                       const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
                                       const rightCount = rightBlock.bullets.length;
                                       let rightFontSize = '12px';
@@ -946,7 +1576,7 @@ export default function DocumentPreview({
                                         rightTitleSize = '12px';
                                         rightGap = '4px';
                                       }
-      
+
                                       return (
                                         <div className="slide-dual-layout">
                                           <div className="slide-col-card" style={{ gap: leftGap }}>
@@ -979,7 +1609,7 @@ export default function DocumentPreview({
                                         mainTitleSize = '13px';
                                         mainGap = '4px';
                                       }
-      
+
                                       return (
                                         <div className="slide-single-layout">
                                           <div className="slide-single-card" style={{ gap: mainGap }}>
@@ -1001,22 +1631,22 @@ export default function DocumentPreview({
                         </>
                       )}
                     </div>
-  
+
                     <div className="slideshow-controls">
-                      <button 
-                        type="button" 
-                        disabled={activeSlide === 0} 
+                      <button
+                        type="button"
+                        disabled={activeSlide === 0}
                         onClick={() => setActiveSlide(activeSlide - 1)}
                         className="btn-slide-nav"
                       >
                         <ChevronLeft size={16} /> Anterior
                       </button>
-                      
+
                       <span className="slide-index">Diapositiva {activeSlide + 1} de {generatedData.slides.length}</span>
-                      
-                      <button 
-                        type="button" 
-                        disabled={activeSlide === generatedData.slides.length - 1} 
+
+                      <button
+                        type="button"
+                        disabled={activeSlide === generatedData.slides.length - 1}
                         onClick={() => setActiveSlide(activeSlide + 1)}
                         className="btn-slide-nav"
                       >
@@ -1070,7 +1700,7 @@ export default function DocumentPreview({
             {docType === 'spreadsheet' && (
               <div className="preview-spreadsheet">
                 <div className="excel-tabs">
-                  {['hoja1', 'hoja2', 'hoja3', 'hoja4', 'hoja5', 'hoja6', 'hoja7'].map((sheetKey) => {
+                  {Object.keys(generatedData).filter(key => key.startsWith('hoja') && generatedData[key]).map((sheetKey) => {
                     const tabTitle = generatedData[sheetKey].titulo;
                     return (
                       <button
@@ -1151,536 +1781,177 @@ export default function DocumentPreview({
                     </table>
                   )}
 
-                  {activeSheet === 'hoja2' && (
-                    <table className="excel-table grid">
-                      <thead>
-                        <tr>
-                          {generatedData.hoja2.headers.map((h, i) => <th key={i}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {generatedData.hoja2.rows.map((row, rIdx) => (
-                          <tr key={rIdx}>
-                            {row.map((cell, cIdx) => {
-                              if (isEditing) {
-                                return (
-                                  <td key={cIdx}>
-                                    <input 
-                                      type="text" 
+                  {activeSheet !== 'hoja1' && (
+                    activeSheet === 'hoja3' && generatedData.hoja3 && generatedData.hoja3.titulo && generatedData.hoja3.titulo.toLowerCase().includes("presupuesto") ? (
+                      <table className="excel-table grid">
+                        <thead>
+                          <tr>
+                            {generatedData.hoja3.headers.map((h, i) => <th key={i}>{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {generatedData.hoja3.rows.map((row, rIdx) => (
+                            <tr key={rIdx}>
+                              {isEditing ? (
+                                <>
+                                  <td>
+                                    <input
+                                      type="text"
                                       className="edit-grid-input"
-                                      value={cell} 
+                                      value={row[0]}
                                       onChange={(e) => {
                                         const val = e.target.value;
                                         setGeneratedData(prev => {
-                                          const newRows = [...prev.hoja2.rows];
-                                          newRows[rIdx] = [...newRows[rIdx]];
-                                          newRows[rIdx][cIdx] = val;
-                                          return {
-                                            ...prev,
-                                            hoja2: { ...prev.hoja2, rows: newRows }
-                                          };
+                                          const newRows = [...prev.hoja3.rows];
+                                          newRows[rIdx] = [val, newRows[rIdx][1], newRows[rIdx][2], newRows[rIdx][3]];
+                                          return { ...prev, hoja3: { ...prev.hoja3, rows: newRows } };
                                         });
-                                      }} 
+                                      }}
                                     />
                                   </td>
-                                );
-                              }
-                              if (cIdx === 4) {
-                                const statusClass = cell.toLowerCase().includes('completado') 
-                                  ? 'completed' 
-                                  : cell.toLowerCase().includes('progreso') 
-                                    ? 'in-progress' 
-                                    : 'pending';
-                                return <td key={cIdx} className={`status-pill ${statusClass}`}>{cell}</td>;
-                              }
-                              return <td key={cIdx}>{cell}</td>;
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-
-                  {activeSheet === 'hoja3' && (
-                    <table className="excel-table grid">
-                      <thead>
-                        <tr>
-                          {generatedData.hoja3.headers.map((h, i) => <th key={i}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {generatedData.hoja3.rows.map((row, rIdx) => (
-                          <tr key={rIdx}>
-                            {isEditing ? (
-                              <>
-                                <td>
-                                  <input 
-                                    type="text" 
-                                    className="edit-grid-input"
-                                    value={row[0]} 
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setGeneratedData(prev => {
-                                        const newRows = [...prev.hoja3.rows];
-                                        newRows[rIdx] = [val, newRows[rIdx][1], newRows[rIdx][2], newRows[rIdx][3]];
-                                        return { ...prev, hoja3: { ...prev.hoja3, rows: newRows } };
-                                      });
-                                    }} 
-                                  />
-                                </td>
-                                <td>
-                                  <input 
-                                    type="number" 
-                                    className="edit-grid-input"
-                                    value={row[1]} 
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      setGeneratedData(prev => {
-                                        const newRows = [...prev.hoja3.rows];
-                                        const cost = Number(newRows[rIdx][2]) || 0;
-                                        const total = val * cost;
-                                        newRows[rIdx] = [newRows[rIdx][0], val, cost, total];
-                                        const newTotalVal = newRows.reduce((acc, curr) => acc + (Number(curr[3]) || 0), 0);
-                                        return { 
-                                          ...prev, 
-                                          hoja3: { 
-                                            ...prev.hoja3, 
-                                            rows: newRows,
-                                            formulas: { ...prev.hoja3.formulas, value: newTotalVal }
-                                          } 
-                                        };
-                                      });
-                                    }} 
-                                  />
-                                </td>
-                                <td>
-                                  <input 
-                                    type="number" 
-                                    step="0.01"
-                                    className="edit-grid-input"
-                                    value={row[2]} 
-                                    onChange={(e) => {
-                                      const val = Number(e.target.value);
-                                      setGeneratedData(prev => {
-                                        const newRows = [...prev.hoja3.rows];
-                                        const qty = Number(newRows[rIdx][1]) || 0;
-                                        const total = qty * val;
-                                        newRows[rIdx] = [newRows[rIdx][0], qty, val, total];
-                                        const newTotalVal = newRows.reduce((acc, curr) => acc + (Number(curr[3]) || 0), 0);
-                                        return { 
-                                          ...prev, 
-                                          hoja3: { 
-                                            ...prev.hoja3, 
-                                            rows: newRows,
-                                            formulas: { ...prev.hoja3.formulas, value: newTotalVal }
-                                          } 
-                                        };
-                                      });
-                                    }} 
-                                  />
-                                </td>
-                                <td className="num-cell bold-cell">${Number(row[3]).toFixed(2)}</td>
-                              </>
-                            ) : (
-                              <>
-                                <td>{row[0]}</td>
-                                <td className="num-cell">{row[1]}</td>
-                                <td className="num-cell">${Number(row[2]).toFixed(2)}</td>
-                                <td className="num-cell bold-cell">${Number(row[3]).toFixed(2)}</td>
-                              </>
-                            )}
-                          </tr>
-                        ))}
-                        <tr className="total-row">
-                          <td className="bold-cell">
-                            {isEditing ? (
-                              <input 
-                                type="text" 
-                                className="edit-grid-input"
-                                value={generatedData.hoja3.formulas.label} 
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setGeneratedData(prev => ({
-                                    ...prev,
-                                    hoja3: {
-                                      ...prev.hoja3,
-                                      formulas: { ...prev.hoja3.formulas, label: val }
-                                    }
-                                  }));
-                                }} 
-                              />
-                            ) : generatedData.hoja3.formulas.label}
-                          </td>
-                          <td></td>
-                          <td></td>
-                          <td className="num-cell bold-cell text-purple">${Number(generatedData.hoja3.formulas.value).toFixed(2)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  )}
-
-                  {activeSheet === 'hoja4' && (
-                    <table className="excel-table grid">
-                      <thead>
-                        <tr>
-                          {generatedData.hoja4.headers.map((h, i) => <th key={i}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {generatedData.hoja4.rows.map((row, rIdx) => (
-                          <tr key={rIdx}>
-                            {row.map((cell, cIdx) => (
-                              <td key={cIdx} className={cIdx === 1 ? 'bold-cell' : ''}>
-                                {isEditing ? (
-                                  <input 
-                                    type="text" 
-                                    className="edit-grid-input"
-                                    value={cell} 
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setGeneratedData(prev => {
-                                        const newRows = [...prev.hoja4.rows];
-                                        newRows[rIdx] = [...newRows[rIdx]];
-                                        newRows[rIdx][cIdx] = val;
-                                        return { ...prev, hoja4: { ...prev.hoja4, rows: newRows } };
-                                      });
-                                    }} 
-                                  />
-                                ) : cell}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-
-                  {activeSheet === 'hoja5' && (
-                    <table className="excel-table grid">
-                      <thead>
-                        <tr>
-                          {generatedData.hoja5.headers.map((h, i) => <th key={i}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {generatedData.hoja5.rows.map((row, rIdx) => (
-                          <tr key={rIdx}>
-                            {row.map((cell, cIdx) => (
-                              <td key={cIdx} className={cIdx === 3 ? 'num-cell bold-cell' : ''}>
-                                {isEditing ? (
-                                  <input 
-                                    type="text" 
-                                    className="edit-grid-input"
-                                    value={cell} 
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setGeneratedData(prev => {
-                                        const newRows = [...prev.hoja5.rows];
-                                        newRows[rIdx] = [...newRows[rIdx]];
-                                        newRows[rIdx][cIdx] = val;
-                                        return { ...prev, hoja5: { ...prev.hoja5, rows: newRows } };
-                                      });
-                                    }} 
-                                  />
-                                ) : (
-                                  cIdx === 3 ? `${cell}%` : cell
-                                )}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-
-                  {activeSheet === 'hoja6' && (
-                    <div className="excel-charts-tab-layout">
-                      <div className="excel-table-wrapper">
-                        <table className="excel-table grid">
-                          <thead>
-                            <tr>
-                              {generatedData.hoja6.headers.map((h, i) => <th key={i}>{h}</th>)}
+                                  <td>
+                                    <input
+                                      type="number"
+                                      className="edit-grid-input"
+                                      value={row[1]}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setGeneratedData(prev => {
+                                          const newRows = [...prev.hoja3.rows];
+                                          const cost = Number(newRows[rIdx][2]) || 0;
+                                          const total = val * cost;
+                                          newRows[rIdx] = [newRows[rIdx][0], val, cost, total];
+                                          const newTotalVal = newRows.reduce((acc, curr) => acc + (Number(curr[3]) || 0), 0);
+                                          return {
+                                            ...prev,
+                                            hoja3: {
+                                              ...prev.hoja3,
+                                              rows: newRows,
+                                              formulas: { ...prev.hoja3.formulas, value: newTotalVal }
+                                            }
+                                          };
+                                        });
+                                      }}
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      className="edit-grid-input"
+                                      value={row[2]}
+                                      onChange={(e) => {
+                                        const val = Number(e.target.value);
+                                        setGeneratedData(prev => {
+                                          const newRows = [...prev.hoja3.rows];
+                                          const qty = Number(newRows[rIdx][1]) || 0;
+                                          const total = qty * val;
+                                          newRows[rIdx] = [newRows[rIdx][0], qty, val, total];
+                                          const newTotalVal = newRows.reduce((acc, curr) => acc + (Number(curr[3]) || 0), 0);
+                                          return {
+                                            ...prev,
+                                            hoja3: {
+                                              ...prev.hoja3,
+                                              rows: newRows,
+                                              formulas: { ...prev.hoja3.formulas, value: newTotalVal }
+                                            }
+                                          };
+                                        });
+                                      }}
+                                    />
+                                  </td>
+                                  <td className="num-cell bold-cell">${Number(row[3]).toFixed(2)}</td>
+                                </>
+                              ) : (
+                                <>
+                                  <td>{row[0]}</td>
+                                  <td className="num-cell">{row[1]}</td>
+                                  <td className="num-cell">${Number(row[2]).toFixed(2)}</td>
+                                  <td className="num-cell bold-cell">${Number(row[3]).toFixed(2)}</td>
+                                </>
+                              )}
                             </tr>
-                          </thead>
-                          <tbody>
-                            {generatedData.hoja6.rows.map((row, rIdx) => (
-                              <tr key={rIdx}>
-                                <td>
-                                  {isEditing ? (
-                                    <input 
-                                      type="text" 
-                                      className="edit-grid-input"
-                                      value={row[0]} 
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        setGeneratedData(prev => {
-                                          const newRows = [...prev.hoja6.rows];
-                                          newRows[rIdx] = [val, newRows[rIdx][1], newRows[rIdx][2]];
-                                          return { ...prev, hoja6: { ...prev.hoja6, rows: newRows } };
-                                        });
-                                      }} 
-                                    />
-                                  ) : row[0]}
-                                </td>
-                                <td className="num-cell">
-                                  {isEditing ? (
-                                    <input 
-                                      type="number" 
-                                      className="edit-grid-input"
-                                      value={row[1]} 
-                                      onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setGeneratedData(prev => {
-                                          const newRows = [...prev.hoja6.rows];
-                                          newRows[rIdx] = [newRows[rIdx][0], val, newRows[rIdx][2]];
-                                          return { ...prev, hoja6: { ...prev.hoja6, rows: newRows } };
-                                        });
-                                      }} 
-                                    />
-                                  ) : row[1]}
-                                </td>
-                                <td className="num-cell">
-                                  {isEditing ? (
-                                    <input 
-                                      type="number" 
-                                      className="edit-grid-input"
-                                      value={row[2]} 
-                                      onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setGeneratedData(prev => {
-                                          const newRows = [...prev.hoja6.rows];
-                                          newRows[rIdx] = [newRows[rIdx][0], newRows[rIdx][1], val];
-                                          return { ...prev, hoja6: { ...prev.hoja6, rows: newRows } };
-                                        });
-                                      }} 
-                                    />
-                                  ) : row[2]}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                        
-                        <div className="excel-chart-notice">
-                          <AlertCircle size={14} className="icon-purple" />
-                          <span>Los datos de esta tabla se representarán en los gráficos activos a la derecha.</span>
+                          ))}
+                          <tr className="total-row">
+                            <td className="bold-cell">
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  className="edit-grid-input"
+                                  value={generatedData.hoja3.formulas.label}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setGeneratedData(prev => ({
+                                      ...prev,
+                                      hoja3: {
+                                        ...prev.hoja3,
+                                        formulas: { ...prev.hoja3.formulas, label: val }
+                                      }
+                                    }));
+                                  }}
+                                />
+                              ) : generatedData.hoja3.formulas.label}
+                            </td>
+                            <td></td>
+                            <td></td>
+                            <td className="num-cell bold-cell text-purple">${Number(generatedData.hoja3.formulas.value).toFixed(2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    ) : (
+                      renderGenericSheet(activeSheet)
+                    )
+                  )}
+
+                  {activeSheet !== 'hoja1' && (
+                    <div className="excel-ia-assistant-panel">
+                      <div className="ia-assistant-header">
+                        <div className="ia-assistant-title-row">
+                          <Sparkles className="icon-sparkle animate-pulse" size={18} />
+                          <h3>Asistente de Gráficos IA</h3>
+                        </div>
+                        <div className="ia-assistant-recommendation">
+                          <span className="recommendation-badge">
+                            Recomendado: {getAIRecommendation(activeSheet, generatedData[activeSheet]).label}
+                          </span>
                         </div>
                       </div>
                       
-                      <div className="excel-charts-grid">
-                        {selectedCharts.length === 0 ? (
-                          <div className="excel-chart-card empty-state">
-                            <AlertCircle size={28} />
-                            <p>No se ha seleccionado ningún gráfico en la barra lateral. Activa al menos uno para visualizarlo.</p>
+                      <div className="ia-assistant-body">
+                        <div className="ia-assistant-info">
+                          <p className="ia-justification">
+                            {getAIRecommendation(activeSheet, generatedData[activeSheet]).justification}
+                          </p>
+                          
+                          <div className="ia-chart-controls">
+                            <span className="control-label">Cambiar tipo de gráfico:</span>
+                            <div className="ia-chart-buttons">
+                              {['bar', 'pie', 'line'].map((type) => {
+                                const recommended = getAIRecommendation(activeSheet, generatedData[activeSheet]).type;
+                                const currentChart = activeCharts[activeSheet] || recommended;
+                                const isActive = currentChart === type;
+                                return (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => handleChartChange(activeSheet, type)}
+                                    className={`ia-chart-btn ${isActive ? 'active' : ''}`}
+                                  >
+                                    {type === 'bar' ? 'Barras' : type === 'pie' ? 'Pastel' : 'Líneas'}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                        ) : (
-                          <>
-                            {selectedCharts.includes('pie') && (
-                              <div className="excel-chart-card animate-fade-in">
-                                <h4>Diagrama de Pastel (Proporción Real)</h4>
-                                <svg width="340" height="220" viewBox="0 0 340 220">
-                                  {(() => {
-                                    const values = generatedData.hoja6.rows.map(r => Number(r[2]));
-                                    const labels = generatedData.hoja6.rows.map(r => r[0]);
-                                    const total = values.reduce((s, v) => s + v, 0);
-                                    const colors = ['#AA3BFF', '#10B981', '#3B82F6', '#F59E0B'];
-                                    
-                                    let currentAngle = 0;
-                                    return (
-                                      <g>
-                                        {values.map((val, idx) => {
-                                          const angle = (val / total) * 360;
-                                          const startAngle = currentAngle;
-                                          const endAngle = currentAngle + angle;
-                                          currentAngle = endAngle;
-                                          
-                                          const cx = 100, cy = 110, r = 65, ir = 38;
-                                          const rad = Math.PI / 180;
-                                          const offset = -90;
-                                          
-                                          const x1 = cx + r * Math.cos((startAngle + offset) * rad);
-                                          const y1 = cy + r * Math.sin((startAngle + offset) * rad);
-                                          const x2 = cx + r * Math.cos((endAngle + offset) * rad);
-                                          const y2 = cy + r * Math.sin((endAngle + offset) * rad);
-                                          
-                                          const ix1 = cx + ir * Math.cos((endAngle + offset) * rad);
-                                          const iy1 = cy + ir * Math.sin((endAngle + offset) * rad);
-                                          const ix2 = cx + ir * Math.cos((startAngle + offset) * rad);
-                                          const iy2 = cy + ir * Math.sin((startAngle + offset) * rad);
-                                          
-                                          const largeArcFlag = angle <= 180 ? 0 : 1;
-                                          const pathData = `M ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${ir} ${ir} 0 ${largeArcFlag} 0 ${ix2} ${iy2} Z`;
-                                          
-                                          return (
-                                            <g key={idx} className="chart-donut-slice">
-                                              <path d={pathData} fill={colors[idx]} stroke="#fff" strokeWidth="1" />
-                                              <rect x="180" y={40 + idx * 30} width="10" height="10" rx="2" fill={colors[idx]} />
-                                              <text x="198" y={49 + idx * 30} fill="#fff" fontSize="10" fontWeight="600">
-                                                {labels[idx].split(" - ")[1] || labels[idx]}: {val}
-                                              </text>
-                                            </g>
-                                          );
-                                        })}
-                                        <circle cx="100" cy="110" r="28" fill="#1e1b29" />
-                                        <text x="100" y="114" textAnchor="middle" fill="#aaa" fontSize="10" fontWeight="800">
-                                          Real
-                                        </text>
-                                      </g>
-                                    );
-                                  })()}
-                                </svg>
-                              </div>
-                            )}
-
-                            {selectedCharts.includes('bar') && (
-                              <div className="excel-chart-card animate-fade-in">
-                                <h4>Gráfico de Barras (Meta vs Real)</h4>
-                                <svg width="340" height="220" viewBox="0 0 340 220">
-                                  <line x1="45" y1="30" x2="310" y2="30" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="72.5" x2="310" y2="72.5" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="115" x2="310" y2="115" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="157.5" x2="310" y2="157.5" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="200" x2="310" y2="200" stroke="#555" strokeWidth="1.5" />
-                                  
-                                  <text x="35" y="34" fill="#888" fontSize="8" textAnchor="end">100%</text>
-                                  <text x="35" y="76.5" fill="#888" fontSize="8" textAnchor="end">75%</text>
-                                  <text x="35" y="119" fill="#888" fontSize="8" textAnchor="end">50%</text>
-                                  <text x="35" y="161.5" fill="#888" fontSize="8" textAnchor="end">25%</text>
-                                  <text x="35" y="204" fill="#888" fontSize="8" textAnchor="end">0%</text>
-
-                                  {generatedData.hoja6.rows.map((row, idx) => {
-                                    const label = row[0].split(" - ")[0] || row[0];
-                                    const valA = Number(row[1]);
-                                    const valB = Number(row[2]);
-                                    
-                                    const hA = (valA / 100) * 170;
-                                    const hB = (valB / 100) * 170;
-                                    const xStart = 45 + idx * 65;
-                                    
-                                    return (
-                                      <g key={idx}>
-                                        <rect x={xStart + 10} y={200 - hA} width="14" height={hA} fill="#AA3BFF" rx="1.5" />
-                                        <rect x={xStart + 26} y={200 - hB} width="14" height={hB} fill="#10B981" rx="1.5" />
-                                        <text x={xStart + 25} y="213" fill="#aaa" fontSize="8" textAnchor="middle" fontWeight="bold">
-                                          {label}
-                                        </text>
-                                      </g>
-                                    );
-                                  })}
-
-                                  <rect x="230" y="5" width="8" height="8" rx="1.5" fill="#AA3BFF" />
-                                  <text x="242" y="12" fill="#aaa" fontSize="8" fontWeight="600">Meta</text>
-                                  <rect x="275" y="5" width="8" height="8" rx="1.5" fill="#10B981" />
-                                  <text x="287" y="12" fill="#aaa" fontSize="8" fontWeight="600">Real</text>
-                                </svg>
-                              </div>
-                            )}
-
-                            {selectedCharts.includes('line') && (
-                              <div className="excel-chart-card animate-fade-in">
-                                <h4>Gráfico de Líneas (Evolución de Metas)</h4>
-                                <svg width="340" height="220" viewBox="0 0 340 220">
-                                  <line x1="45" y1="30" x2="310" y2="30" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="72.5" x2="310" y2="72.5" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="115" x2="310" y2="115" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="157.5" x2="310" y2="157.5" stroke="#2e2b38" strokeDasharray="3,3" />
-                                  <line x1="45" y1="200" x2="310" y2="200" stroke="#555" strokeWidth="1.5" />
-                                  
-                                  <text x="35" y="34" fill="#888" fontSize="8" textAnchor="end">100</text>
-                                  <text x="35" y="76.5" fill="#888" fontSize="8" textAnchor="end">75</text>
-                                  <text x="35" y="119" fill="#888" fontSize="8" textAnchor="end">50</text>
-                                  <text x="35" y="161.5" fill="#888" fontSize="8" textAnchor="end">25</text>
-                                  <text x="35" y="204" fill="#888" fontSize="8" textAnchor="end">0</text>
-
-                                  {(() => {
-                                    const pointsA = generatedData.hoja6.rows.map((row, idx) => ({
-                                      x: 65 + idx * 70,
-                                      y: 200 - (Number(row[1]) / 100) * 170
-                                    }));
-                                    const pointsB = generatedData.hoja6.rows.map((row, idx) => ({
-                                      x: 65 + idx * 70,
-                                      y: 200 - (Number(row[2]) / 100) * 170
-                                    }));
-                                    
-                                    const pathA = pointsA.reduce((str, p, i) => `${str}${i === 0 ? 'M' : 'L'} ${p.x} ${p.y} `, '');
-                                    const pathB = pointsB.reduce((str, p, i) => `${str}${i === 0 ? 'M' : 'L'} ${p.x} ${p.y} `, '');
-                                    
-                                    return (
-                                      <g>
-                                        <path d={pathA} fill="none" stroke="#AA3BFF" strokeWidth="1.5" strokeDasharray="2,2" />
-                                        <path d={pathB} fill="none" stroke="#10B981" strokeWidth="2" />
-                                        
-                                        {pointsA.map((p, i) => (
-                                          <circle key={`a-${i}`} cx={p.x} cy={p.y} r="2.5" fill="#AA3BFF" />
-                                        ))}
-                                        {pointsB.map((p, i) => (
-                                          <g key={`b-${i}`}>
-                                            <circle cx={p.x} cy={p.y} r="3" fill="#10B981" stroke="#15111E" strokeWidth="0.75" />
-                                            <text x={p.x} y={p.y - 6} fill="#fff" fontSize="7" fontWeight="bold" textAnchor="middle">
-                                              {generatedData.hoja6.rows[i][2]}
-                                            </text>
-                                          </g>
-                                        ))}
-
-                                        {generatedData.hoja6.rows.map((row, idx) => {
-                                          const label = row[0].split(" - ")[0] || row[0];
-                                          return (
-                                            <text key={idx} x={65 + idx * 70} y="213" fill="#aaa" fontSize="8.5" textAnchor="middle" fontWeight="bold">
-                                              {label}
-                                            </text>
-                                          );
-                                        })}
-                                      </g>
-                                    );
-                                  })()}
-
-                                  <line x1="230" y1="10" x2="242" y2="10" stroke="#AA3BFF" strokeWidth="1.5" strokeDasharray="2,2" />
-                                  <text x="246" y="13" fill="#aaa" fontSize="8" fontWeight="600">Meta</text>
-                                  <line x1="280" y1="10" x2="292" y2="10" stroke="#10B981" strokeWidth="1.5" />
-                                  <text x="296" y="13" fill="#aaa" fontSize="8" fontWeight="600">Real</text>
-                                </svg>
-                              </div>
-                            )}
-                          </>
-                        )}
+                        </div>
+                        
+                        <div className="ia-chart-preview">
+                          <div className="ia-chart-container-inner">
+                            {renderSVGChart(activeSheet, activeCharts[activeSheet] || getAIRecommendation(activeSheet, generatedData[activeSheet]).type)}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  )}
-
-                  {activeSheet === 'hoja7' && (
-                    <table className="excel-table grid">
-                      <thead>
-                        <tr>
-                          {generatedData.hoja7.headers.map((h, i) => <th key={i}>{h}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {generatedData.hoja7.rows.map((row, rIdx) => (
-                          <tr key={rIdx}>
-                            {row.map((cell, cIdx) => (
-                              <td key={cIdx}>
-                                {isEditing ? (
-                                  <input 
-                                    type="text" 
-                                    className="edit-grid-input"
-                                    value={cell} 
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setGeneratedData(prev => {
-                                        const newRows = [...prev.hoja7.rows];
-                                        newRows[rIdx] = [...newRows[rIdx]];
-                                        newRows[rIdx][cIdx] = val;
-                                        return { ...prev, hoja7: { ...prev.hoja7, rows: newRows } };
-                                      });
-                                    }} 
-                                  />
-                                ) : cell}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   )}
                 </div>
               </div>
@@ -1690,14 +1961,14 @@ export default function DocumentPreview({
             {(docType === 'petition' || docType === 'response') && (
               <div className="preview-oficio">
                 <div className="oficio-paper">
-                  
+
                   <div className="oficio-header-logo">
                     {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="edit-input" 
+                      <input
+                        type="text"
+                        className="edit-input"
                         style={{ textAlign: 'center', width: '100%' }}
-                        value={generatedData.encabezado.logoText} 
+                        value={generatedData.encabezado.logoText}
                         onChange={(e) => {
                           const val = e.target.value;
                           setGeneratedData(prev => ({
@@ -1716,11 +1987,11 @@ export default function DocumentPreview({
                     <p className="oficio-num">
                       <strong>
                         {isEditing ? (
-                          <input 
-                            type="text" 
-                            className="edit-input" 
+                          <input
+                            type="text"
+                            className="edit-input"
                             style={{ fontWeight: 'bold', width: '180px' }}
-                            value={generatedData.encabezado.oficioNum} 
+                            value={generatedData.encabezado.oficioNum}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -1734,11 +2005,11 @@ export default function DocumentPreview({
                     </p>
                     <p className="oficio-date">
                       {isEditing ? (
-                        <input 
-                          type="text" 
-                          className="edit-input" 
+                        <input
+                          type="text"
+                          className="edit-input"
                           style={{ width: '220px', textAlign: 'right' }}
-                          value={generatedData.encabezado.lugarFecha} 
+                          value={generatedData.encabezado.lugarFecha}
                           onChange={(e) => {
                             const val = e.target.value;
                             setGeneratedData(prev => ({
@@ -1751,31 +2022,82 @@ export default function DocumentPreview({
                     </p>
                   </div>
 
-                  <div className="oficio-destinatario" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {/* TYPE TAG */}
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    background: docType === 'petition' ? 'rgba(139,92,246,0.15)' : 'rgba(16,185,129,0.15)',
+                    border: `1px solid ${docType === 'petition' ? '#7c3aed' : '#059669'}`,
+                    borderRadius: '6px', padding: '4px 12px', marginBottom: '14px', marginTop: '2px'
+                  }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: docType === 'petition' ? '#a78bfa' : '#34d399' }}>
+                      {docType === 'petition' ? '📋 Oficio de Solicitud' : '✅ Oficio de Respuesta'}
+                    </span>
+                  </div>
+
+                  {/* REFERENCIA AL OFICIO PREVIO — solo en Respuesta */}
+                  {docType === 'response' && generatedData.referenciaOficioPrevio && (
+                    <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '6px', padding: '8px 12px', marginBottom: '14px' }}>
+                      <p style={{ margin: 0, fontSize: '12px' }}>
+                        <strong style={{ color: '#34d399' }}>📎 En referencia a:</strong>{' '}
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            className="edit-input"
+                            style={{ width: '260px', display: 'inline-block' }}
+                            value={generatedData.referenciaOficioPrevio}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setGeneratedData(prev => ({ ...prev, referenciaOficioPrevio: val }));
+                            }}
+                          />
+                        ) : generatedData.referenciaOficioPrevio}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* DESTINATARIO (Persona tipada) */}
+                  <div className="oficio-destinatario" style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
+                    <p style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 4px 0' }}>
+                      {docType === 'petition' ? 'Dirigido a:' : 'Para:'}
+                    </p>
                     {isEditing ? (
                       <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <strong style={{ width: '100px', fontSize: '12px' }}>NOMBRE:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.destinatario.nombre} 
+                          <strong style={{ width: '110px', fontSize: '12px' }}>TRATAMIENTO:</strong>
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.destinatario.tratamiento || ''}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
                                 ...prev,
-                                advisor: val,
+                                destinatario: { ...prev.destinatario, tratamiento: val }
+                              }));
+                            }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong style={{ width: '110px', fontSize: '12px' }}>NOMBRE:</strong>
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.destinatario.nombre}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setGeneratedData(prev => ({
+                                ...prev,
                                 destinatario: { ...prev.destinatario, nombre: val }
                               }));
                             }}
                           />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <strong style={{ width: '100px', fontSize: '12px' }}>CARGO:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.destinatario.cargo} 
+                          <strong style={{ width: '110px', fontSize: '12px' }}>CARGO:</strong>
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.destinatario.cargo}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -1786,11 +2108,11 @@ export default function DocumentPreview({
                           />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <strong style={{ width: '100px', fontSize: '12px' }}>INSTITUCIÓN:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.destinatario.institucion} 
+                          <strong style={{ width: '110px', fontSize: '12px' }}>INSTITUCIÓN:</strong>
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.destinatario.institucion}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -1800,25 +2122,47 @@ export default function DocumentPreview({
                             }}
                           />
                         </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <strong style={{ width: '110px', fontSize: '12px' }}>CIUDAD:</strong>
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.destinatario.ciudad || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setGeneratedData(prev => ({
+                                ...prev,
+                                destinatario: { ...prev.destinatario, ciudad: val }
+                              }));
+                            }}
+                          />
+                        </div>
                       </>
                     ) : (
                       <>
-                        <p><strong>{generatedData.destinatario.nombre}</strong></p>
-                        <p>{generatedData.destinatario.cargo}</p>
-                        <p>{generatedData.destinatario.institucion}</p>
+                        {generatedData.destinatario.tratamiento && (
+                          <p style={{ margin: 0, fontSize: '13px' }}>{generatedData.destinatario.tratamiento}</p>
+                        )}
+                        <p style={{ margin: 0, fontSize: '14px' }}><strong>{generatedData.destinatario.nombre}</strong></p>
+                        <p style={{ margin: 0, fontSize: '13px' }}>{generatedData.destinatario.cargo}</p>
+                        <p style={{ margin: 0, fontSize: '13px' }}>{generatedData.destinatario.institucion}</p>
+                        {generatedData.destinatario.ciudad && (
+                          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>{generatedData.destinatario.ciudad}</p>
+                        )}
                       </>
                     )}
                   </div>
+
 
                   <div className="oficio-asunto">
                     {isEditing ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <strong style={{ minWidth: '80px', fontSize: '12px' }}>ASUNTO:</strong>
-                        <input 
-                          type="text" 
-                          className="edit-input" 
+                        <input
+                          type="text"
+                          className="edit-input"
                           style={{ fontWeight: 'bold' }}
-                          value={generatedData.asunto} 
+                          value={generatedData.asunto}
                           onChange={(e) => {
                             const val = e.target.value;
                             setGeneratedData(prev => ({
@@ -1834,10 +2178,10 @@ export default function DocumentPreview({
                   </div>
 
                   {isEditing ? (
-                    <input 
-                      type="text" 
-                      className="edit-input" 
-                      value={generatedData.saludo} 
+                    <input
+                      type="text"
+                      className="edit-input"
+                      value={generatedData.saludo}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -1852,9 +2196,9 @@ export default function DocumentPreview({
                   )}
 
                   {isEditing ? (
-                    <textarea 
-                      className="edit-textarea" 
-                      value={generatedData.cuerpo} 
+                    <textarea
+                      className="edit-textarea"
+                      value={generatedData.cuerpo}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -1874,11 +2218,11 @@ export default function DocumentPreview({
                       {isEditing ? (
                         <div className="edit-list" style={{ gap: '8px', marginBottom: '10px' }}>
                           {generatedData.peticion.map((p, idx) => (
-                            <input 
+                            <input
                               key={idx}
-                              type="text" 
-                              className="edit-input" 
-                              value={p} 
+                              type="text"
+                              className="edit-input"
+                              value={p}
                               onChange={(e) => {
                                 const val = e.target.value;
                                 setGeneratedData(prev => {
@@ -1903,10 +2247,10 @@ export default function DocumentPreview({
                   {docType === 'response' && (
                     <>
                       {isEditing ? (
-                        <textarea 
-                          className="edit-textarea" 
+                        <textarea
+                          className="edit-textarea"
                           style={{ fontWeight: 'bold', marginBottom: '10px' }}
-                          value={generatedData.conclusion} 
+                          value={generatedData.conclusion}
                           onChange={(e) => {
                             const val = e.target.value;
                             setGeneratedData(prev => ({
@@ -1922,10 +2266,10 @@ export default function DocumentPreview({
                   )}
 
                   {isEditing ? (
-                    <input 
-                      type="text" 
-                      className="edit-input" 
-                      value={generatedData.despedida} 
+                    <input
+                      type="text"
+                      className="edit-input"
+                      value={generatedData.despedida}
                       onChange={(e) => {
                         const val = e.target.value;
                         setGeneratedData(prev => ({
@@ -1946,10 +2290,10 @@ export default function DocumentPreview({
                       <>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong style={{ width: '100px', fontSize: '12px' }}>NOMBRE:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.firma.nombre} 
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.firma.nombre}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -1961,10 +2305,10 @@ export default function DocumentPreview({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong style={{ width: '100px', fontSize: '12px' }}>CARGO:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.firma.cargo} 
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.firma.cargo}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -1976,10 +2320,10 @@ export default function DocumentPreview({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong style={{ width: '100px', fontSize: '12px' }}>C.I. / R.U.C.:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.firma.cedula || ''} 
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.firma.cedula || ''}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -1991,10 +2335,10 @@ export default function DocumentPreview({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <strong style={{ width: '100px', fontSize: '12px' }}>INSTITUCIÓN:</strong>
-                          <input 
-                            type="text" 
-                            className="edit-input" 
-                            value={generatedData.firma.institucion || ''} 
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={generatedData.firma.institucion || ''}
                             onChange={(e) => {
                               const val = e.target.value;
                               setGeneratedData(prev => ({
@@ -2018,10 +2362,10 @@ export default function DocumentPreview({
                   <div className="oficio-anexos">
                     <p><strong>Anexos:</strong></p>
                     {isEditing ? (
-                      <input 
-                        type="text" 
-                        className="edit-input" 
-                        value={generatedData.anexos} 
+                      <input
+                        type="text"
+                        className="edit-input"
+                        value={generatedData.anexos}
                         onChange={(e) => {
                           const val = e.target.value;
                           setGeneratedData(prev => ({
@@ -2048,6 +2392,18 @@ export default function DocumentPreview({
             <p>Escribe tu prompt o haz clic en una sugerencia. La Inteligencia Artificial estructurará los contenidos y los previsualizará de inmediato.</p>
           </div>
         )}
+      </div>
+
+      {/* Footer Clear and Reset Button */}
+      <div className="preview-footer">
+        <button 
+          type="button" 
+          className="btn-clear-all"
+          onClick={onClearAll}
+          title="Limpiar consulta, metadatos y restablecer colores"
+        >
+          <Trash2 size={15} /> Limpiar y Reiniciar Todo
+        </button>
       </div>
     </div>
   );

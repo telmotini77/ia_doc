@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import SettingsModal from './components/SettingsModal';
@@ -9,7 +9,9 @@ import {
   generateLocalContent, 
   generateGeminiContent,
   NeuralClassifier,
-  TRAINING_DATASET
+  TRAINING_DATASET,
+  fetchScientificPapers,
+  fetchWikipediaSummary
 } from './utils/documentGenerator';
 
 import {
@@ -31,6 +33,7 @@ export default function App() {
   const [modifyActive, setModifyActive] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [scientificSearch, setScientificSearch] = useState(true);
   
   // Machine Learning classifier state
   const [classifier, setClassifier] = useState(null);
@@ -44,6 +47,12 @@ export default function App() {
   const [institution, setInstitution] = useState('');
   const [authors, setAuthors] = useState('');
   const [advisor, setAdvisor] = useState('');
+
+  // Metadatos específicos para Oficios (petition / response)
+  const [oficioDignatario, setOficioDignatario] = useState(''); // Dignidad / cargo a quien se dirige
+  const [oficioSolicitante, setOficioSolicitante] = useState(''); // Nombre completo del solicitante
+  const [oficioSolicitanteCedula, setOficioSolicitanteCedula] = useState(''); // Número de cédula
+  const [oficioMotivo, setOficioMotivo] = useState(''); // Motivo de la solicitud / respuesta
 
   // Cover page visual customizations
   const [coverLogo, setCoverLogo] = useState('');
@@ -94,39 +103,43 @@ export default function App() {
     spacing: '2.0',
     alignment: 'left',
     indent: '1.27',
-    reportType: 'tecnico'
+    reportType: 'tecnico',
+    formatPreset: 'apa7'
   });
 
   // Train the Neural Network Classifier on mount
   useEffect(() => {
-    try {
-      const model = new NeuralClassifier();
-      const stats = model.train(TRAINING_DATASET, 60, 0.25);
-      
-      setClassifier(model);
-      setTrainStats(stats);
+    const initAndTrainModel = async () => {
+      try {
+        const model = new NeuralClassifier();
+        const stats = await model.train();
+        
+        setClassifier(model);
+        setTrainStats(stats);
 
-      // Create detailed visual console logs of training epochs
-      const logs = [
-        `[INFO] Inicializando DocuGenius Neural Engine...`,
-        `[INFO] Cargando dataset: ${TRAINING_DATASET.length} frases etiquetadas en español...`,
-        `[INFO] Vocabulario indexado: ${stats.vocabSize} palabras únicas.`,
-        `[INFO] Iniciando entrenamiento por Descenso de Gradiente (SGD) en navegador...`,
-      ];
-
-      // Extract loss checkpoints every 15 epochs
-      stats.history.forEach((h) => {
-        if (h.epoch === 1 || h.epoch % 15 === 0 || h.epoch === 60) {
-          logs.push(`[ÉPOCA ${h.epoch}/60] Pérdida: ${h.loss.toFixed(4)} | Precisión: ${(h.accuracy * 100).toFixed(1)}%`);
+        if (stats && stats.logs) {
+          setTrainingLogs(stats.logs);
+        } else {
+          const logs = [
+            `[INFO] Inicializando DocuGenius Neural Engine...`,
+            `[INFO] Vocabulario indexado: ${stats.vocabSize} palabras únicas.`,
+            `[INFO] Iniciando entrenamiento por Descenso de Gradiente (SGD) en navegador...`,
+          ];
+          stats.history.forEach((h) => {
+            if (h.epoch === 1 || h.epoch % 30 === 0 || h.epoch === 150) {
+              logs.push(`[ÉPOCA ${h.epoch}/150] Pérdida: ${h.loss.toFixed(4)} | Precisión: ${(h.accuracy * 100).toFixed(1)}%`);
+            }
+          });
+          logs.push(`[INFO] ¡Entrenamiento completo! Red Neuronal lista.`);
+          setTrainingLogs(logs);
         }
-      });
+      } catch (err) {
+        console.error(err);
+        setTrainingLogs([`[ERROR] Error inicializando red neuronal: ${err.message}`]);
+      }
+    };
 
-      logs.push(`[INFO] ¡Entrenamiento completo! Red Neuronal lista.`);
-      setTrainingLogs(logs);
-    } catch (err) {
-      console.error(err);
-      setTrainingLogs([`[ERROR] Error inicializando red neuronal: ${err.message}`]);
-    }
+    initAndTrainModel();
   }, []);
 
   // Show auto-expiring toast notifications
@@ -168,11 +181,51 @@ export default function App() {
     try {
       let data = null;
       let pred = null;
+      let papers = [];
+      let wikipediaResults = [];
+
+      // Buscar artículos e información en internet si está habilitado
+      if (scientificSearch && (docType === 'report' || docType === 'presentation' || docType === 'spreadsheet')) {
+        try {
+          showToast("Investigando el tema en internet...", "info");
+          
+          // Ejecutar búsquedas paralelas de Wikipedia y OpenAlex
+          const [openAlexPapers, wikiData] = await Promise.all([
+            fetchScientificPapers(prompt).catch(err => {
+              console.error("OpenAlex fetch error:", err);
+              return [];
+            }),
+            fetchWikipediaSummary(prompt).catch(err => {
+              console.error("Wikipedia fetch error:", err);
+              return [];
+            })
+          ]);
+
+          papers = openAlexPapers;
+          wikipediaResults = wikiData;
+
+          let successMsgs = [];
+          if (papers && papers.length > 0) {
+            successMsgs.push(`${papers.length} artículos científicos`);
+          }
+          if (wikipediaResults && wikipediaResults.length > 0) {
+            successMsgs.push(`${wikipediaResults.length} fuentes enciclopédicas`);
+          }
+
+          if (successMsgs.length > 0) {
+            showToast(`¡Investigación exitosa! Encontrado: ${successMsgs.join(" y ")}.`, "success");
+          } else {
+            showToast("No se encontraron resultados específicos en internet. Usando base local...", "info");
+          }
+        } catch (sErr) {
+          console.error("Internet research error:", sErr);
+        }
+      }
 
       // Classify with local neural classifier for metrics representation
       if (classifier) {
         try {
-          pred = classifier.predict(prompt);
+          pred = await classifier.predict(prompt);
           setPrediction(pred);
         } catch (cErr) {
           console.error("Local classifier error:", cErr);
@@ -191,7 +244,9 @@ export default function App() {
             customMetadataObj, 
             attachedFiles, 
             reportFormat.reportType,
-            activeDocContext
+            activeDocContext,
+            papers,
+            wikipediaResults
           );
           
           if (data) {
@@ -209,14 +264,14 @@ export default function App() {
         } catch (apiErr) {
           console.warn("Gemini API failed, falling back to local Neural AI model:", apiErr);
           showToast("Gemini API Key inválida o error en red. Usando motor local gratuito...", "info");
-          data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext, presentationStyle);
+          data = await generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext, presentationStyle, papers, wikipediaResults);
         }
       } else {
         if (aiMode === 'gemini') {
           showToast("Falta ingresar la Gemini API Key. Usando motor local gratuito...", "info");
         }
         // Local generator
-        data = generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext, presentationStyle);
+        data = await generateLocalContent(prompt, docType, pred, reportFormat.reportType, activeDocContext, presentationStyle, papers, wikipediaResults);
       }
 
       // Override metadata fields if customMetadata is checked
@@ -238,6 +293,50 @@ export default function App() {
         }
       }
 
+      // Oficios: override SIEMPRE activo (no requiere el toggle de customMetadata)
+      if ((docType === 'petition' || docType === 'response') && data) {
+        // Dignidad / cargo del destinatario
+        if (oficioDignatario.trim()) {
+          if (data.destinatario) {
+            data.destinatario.cargo = oficioDignatario.trim();
+            if (!data.destinatario.nombre || data.destinatario.nombre.includes('Lcda.') || data.destinatario.nombre.includes('Ciudadano')) {
+              data.destinatario.nombre = oficioDignatario.trim();
+            }
+          }
+        }
+        // Nombre del solicitante
+        if (oficioSolicitante.trim()) {
+          if (docType === 'petition') {
+            if (data.firma) data.firma.nombre = oficioSolicitante.trim();
+            if (data.saludo) data.saludo = data.saludo.replace('Ing. Solicitante Responsable', oficioSolicitante.trim());
+            if (data.cuerpoContexto) data.cuerpoContexto = data.cuerpoContexto.replace('Ing. Solicitante Responsable', oficioSolicitante.trim());
+          } else {
+            // En respuesta: el peticionario es el destinatario
+            if (data.destinatario) data.destinatario.nombre = oficioSolicitante.trim();
+            if (data.saludo) data.saludo = `Estimado/a ${oficioSolicitante.trim()}:`;
+          }
+        }
+        // Cédula del solicitante
+        if (oficioSolicitanteCedula.trim()) {
+          if (docType === 'petition' && data.firma) {
+            data.firma.cedula = oficioSolicitanteCedula.trim();
+          } else if (docType === 'response' && data.destinatario) {
+            data.destinatario.cedula = oficioSolicitanteCedula.trim();
+          }
+        }
+        // Motivo de la solicitud / respuesta → asunto + cuerpo
+        if (oficioMotivo.trim()) {
+          data.asunto = oficioMotivo.trim();
+          if (docType === 'petition' && data.cuerpoDesarrollo) {
+            data.cuerpoDesarrollo = `El motivo que origina esta comunicación es: ${oficioMotivo.trim()}. La presente petición se sustenta en la necesidad de dar cumplimiento a los objetivos institucionales. Se adjuntan todos los documentos habilitantes que respaldan el presente requerimiento para su revisión y visto bueno.`;
+          } else if (docType === 'response' && data.cuerpoRecepcion) {
+            const base = data.cuerpoRecepcion.split(',')[0];
+            data.cuerpoRecepcion = `${base}, en atención al asunto: ${oficioMotivo.trim()}. Una vez analizado el expediente presentado y verificado el cumplimiento de los requisitos formales establecidos, esta Dirección procede a emitir la siguiente resolución.`;
+          }
+        }
+      }
+
+
       setGeneratedData(data);
       if (aiMode === 'local' && pred) {
         showToast(`¡Documento clasificado como '${pred.category.toUpperCase()}' y generado con éxito!`, "success");
@@ -248,6 +347,66 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Clear and reset everything (query, metadata, and color states)
+  const handleClearAll = () => {
+    // Clear query space
+    setPrompt('');
+    setGeneratedData(null);
+    setPrediction(null);
+    setAttachedFiles([]);
+    setIsEditing(false);
+
+    // Clear metadata
+    setCustomMetadata(false);
+    setTitle('');
+    setInstitution('');
+    setAuthors('');
+    setAdvisor('');
+    setOficioDignatario('');
+    setOficioSolicitante('');
+    setOficioSolicitanteCedula('');
+    setOficioMotivo('');
+    setCoverLogo('');
+    setCoverAlign('left');
+    setCoverSizes({
+      title: 24,
+      authors: 13,
+      advisor: 13,
+      course: 13,
+      institution: 13,
+      date: 11
+    });
+
+    // Reset color states to default
+    setPptxPalette('galactic');
+    setCustomPptxPalette({
+      primary: '#AA3BFF',
+      background: '#15111E',
+      cardBg: '#20192B',
+      title: '#DDBBFF',
+      text: '#E5E3EB',
+      muted: '#A5A0B2'
+    });
+
+    // Reset document formatting
+    setReportFormat({
+      paperSize: 'carta',
+      font: 'times12',
+      margin: '2.54',
+      spacing: '2.0',
+      alignment: 'left',
+      indent: '1.27',
+      reportType: 'tecnico',
+      formatPreset: 'apa7'
+    });
+
+    // Reset slide and sheet navigation
+    setActiveSlide(0);
+    setActiveSheet('hoja1');
+
+    showToast("Consulta, metadatos y estados de colores reiniciados a los valores predeterminados.", "info");
   };
 
   // Download Action
@@ -267,9 +426,15 @@ export default function App() {
       } else if (format === 'word' && (docType === 'report' || docType === 'petition' || docType === 'response')) {
         await downloadDOCX(generatedData, docType, `${baseFilename}.docx`, reportFormat, coverLogo, coverAlign, coverSizes);
         showToast("Descarga de Word (.docx) iniciada.", "success");
-      } else if (format === 'excel' && docType === 'spreadsheet') {
-        downloadXLSX(generatedData, `${baseFilename}.xlsx`, selectedCharts);
+      } else if ((format === 'excel' || format === 'excel-xlsx') && docType === 'spreadsheet') {
+        downloadXLSX(generatedData, `${baseFilename}.xlsx`, selectedCharts, 'xlsx');
         showToast("Descarga de Excel (.xlsx) iniciada con éxito.", "success");
+      } else if (format === 'excel-xls' && docType === 'spreadsheet') {
+        downloadXLSX(generatedData, `${baseFilename}.xls`, selectedCharts, 'xls');
+        showToast("Descarga de Excel 97-2003 (.xls) iniciada con éxito.", "success");
+      } else if (format === 'csv' && docType === 'spreadsheet') {
+        downloadXLSX(generatedData, `${baseFilename}.csv`, selectedCharts, 'csv', activeSheet);
+        showToast(`Descarga de CSV (.csv) de la pestaña '${generatedData[activeSheet]?.titulo || 'Hoja'}' iniciada.`, "success");
       } else if (format === 'powerpoint' && docType === 'presentation') {
         const activePaletteColors = pptxPalette === 'custom' ? customPptxPalette : PPTX_PALETTES[pptxPalette];
         downloadPPTX(generatedData, `${baseFilename}.pptx`, activePaletteColors);
@@ -314,6 +479,14 @@ export default function App() {
           setAuthors={setAuthors}
           advisor={advisor}
           setAdvisor={setAdvisor}
+          oficioDignatario={oficioDignatario}
+          setOficioDignatario={setOficioDignatario}
+          oficioSolicitante={oficioSolicitante}
+          setOficioSolicitante={setOficioSolicitante}
+          oficioSolicitanteCedula={oficioSolicitanteCedula}
+          setOficioSolicitanteCedula={setOficioSolicitanteCedula}
+          oficioMotivo={oficioMotivo}
+          setOficioMotivo={setOficioMotivo}
           selectedCharts={selectedCharts}
           onChartToggle={handleChartToggle}
           aiMode={aiMode}
@@ -361,6 +534,8 @@ export default function App() {
             setModifyActive={setModifyActive}
             isEditing={isEditing}
             setIsEditing={setIsEditing}
+            scientificSearch={scientificSearch}
+            setScientificSearch={setScientificSearch}
           />
 
           <DocumentPreview
@@ -384,6 +559,7 @@ export default function App() {
             pptxPalette={pptxPalette}
             customPptxPalette={customPptxPalette}
             presentationStyle={presentationStyle}
+            onClearAll={handleClearAll}
           />
         </main>
       </div>

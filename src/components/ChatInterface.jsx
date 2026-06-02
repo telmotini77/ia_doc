@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Sparkles, Cpu, Send, AlertCircle, RefreshCw, Plus, X, FileText, Image as ImageIcon } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Sparkles, Cpu, Send, RefreshCw, Plus, X, FileText, Image as ImageIcon } from 'lucide-react';
 import SubirArchivos from './SubirArchivos';
 
 export default function ChatInterface({
@@ -14,11 +14,12 @@ export default function ChatInterface({
   attachedFiles,
   setAttachedFiles,
   generatedData,
-  setGeneratedData,
   modifyActive,
   setModifyActive,
   isEditing,
-  setIsEditing
+  setIsEditing,
+  scientificSearch,
+  setScientificSearch
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [showUploader, setShowUploader] = useState(false);
@@ -162,41 +163,59 @@ export default function ChatInterface({
           onDrop={handleDrop}
           style={{ flexDirection: 'column', alignItems: 'flex-start' }}
         >
-          {generatedData && (
-            <div className="modification-controls" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '8px', padding: '4px 6px', fontSize: '12px', borderBottom: '1px dashed var(--border-color)', paddingBottom: '8px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <input 
-                  type="checkbox" 
-                  checked={modifyActive} 
-                  onChange={(e) => setModifyActive(e.target.checked)} 
-                  style={{ accentColor: 'var(--color-purple-light)', cursor: 'pointer' }}
-                />
-                <span style={{ fontWeight: '500' }}>Modificar documento actual con esta consulta</span>
-              </label>
-              <button 
-                type="button" 
-                onClick={() => {
-                  setIsEditing(prev => !prev);
-                }} 
-                style={{ 
-                  background: isEditing ? 'rgba(255, 170, 0, 0.15)' : 'rgba(170, 59, 255, 0.15)', 
-                  border: isEditing ? '1px solid #ffaa00' : '1px solid var(--color-purple-light)', 
-                  color: isEditing ? '#ffaa00' : 'var(--color-purple-light)', 
-                  cursor: 'pointer', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '4px', 
-                  fontSize: '11px', 
-                  padding: '4px 10px', 
-                  borderRadius: '4px', 
-                  transition: 'all 0.2s', 
-                  fontWeight: '600' 
-                }}
-                className="edit-toggle-btn"
-              >
-                <Sparkles size={12} />
-                <span>{isEditing ? "Habilitar Chat/IA" : "Modificar"}</span>
-              </button>
+          {(generatedData || (docType === 'report' || docType === 'petition' || docType === 'response')) && (
+            <div className="chat-options-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', width: '100%', marginBottom: '8px', borderBottom: '1px dashed var(--border-color)', paddingBottom: '8px' }}>
+              {(docType === 'report' || docType === 'petition' || docType === 'response') && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }} title="Busca fuentes de información científica en internet a través de OpenAlex API para enriquecer el documento">
+                  <input 
+                    type="checkbox" 
+                    checked={scientificSearch} 
+                    onChange={(e) => setScientificSearch(e.target.checked)} 
+                    style={{ accentColor: 'var(--color-purple-light)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Búsqueda Científica (Internet)</span>
+                </label>
+              )}
+
+              {generatedData && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={modifyActive} 
+                    onChange={(e) => setModifyActive(e.target.checked)} 
+                    style={{ accentColor: 'var(--color-purple-light)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontWeight: '500' }}>Modificar documento actual</span>
+                </label>
+              )}
+
+              {generatedData && (
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsEditing(prev => !prev);
+                  }} 
+                  style={{ 
+                    background: isEditing ? 'rgba(255, 170, 0, 0.15)' : 'rgba(170, 59, 255, 0.15)', 
+                    border: isEditing ? '1px solid #ffaa00' : '1px solid var(--color-purple-light)', 
+                    color: isEditing ? '#ffaa00' : 'var(--color-purple-light)', 
+                    cursor: 'pointer', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '4px', 
+                    fontSize: '11px', 
+                    padding: '4px 10px', 
+                    borderRadius: '4px', 
+                    transition: 'all 0.2s', 
+                    fontWeight: '600',
+                    marginLeft: 'auto'
+                  }}
+                  className="edit-toggle-btn"
+                >
+                  <Sparkles size={12} />
+                  <span>{isEditing ? "Habilitar Chat/IA" : "Modificar"}</span>
+                </button>
+              )}
             </div>
           )}
           {/* Show simple badges ONLY when the uploader panel is closed to avoid duplication */}

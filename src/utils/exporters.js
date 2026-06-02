@@ -7,12 +7,8 @@ import {
   Document, 
   Packer, 
   Paragraph, 
-  Table as DocxTable, 
-  TableRow as DocxTableRow, 
-  TableCell as DocxTableCell, 
   HeadingLevel, 
   AlignmentType, 
-  WidthType,
   Header,
   TextRun,
   PageNumber
@@ -26,45 +22,6 @@ import { parseSlideText } from './documentGenerator';
 // ==========================================================================
 // FUNCIONES AUXILIARES PARA EL PREPARADO DE PDF (.pdf)
 // ==========================================================================
-
-function addPDFHeaderFooter(doc, title) {
-  const pageCount = doc.internal.getNumberOfPages();
-  
-  // No dibujar encabezado/pie de página en la portada (página 1)
-  if (pageCount === 1) return;
-
-  // Dibujar Encabezado
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(140, 140, 140);
-  doc.text(title.toUpperCase().substring(0, 75), 20, 15);
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.2);
-  doc.line(20, 17, 190, 17);
-
-  // Dibujar Pie de Página
-  doc.text(`Página ${pageCount}`, 105, 285, { align: "center" });
-}
-
-function addPDFSection(doc, sectionTitle, contentText, startY) {
-  let y = startY;
-  
-  // Título de Sección
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(170, 59, 255); // Púrpura #AA3BFF
-  doc.text(sectionTitle, 20, y);
-  y += 6;
-
-  // Cuerpo de Sección
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
-  doc.setTextColor(50, 50, 50);
-  const lines = doc.splitTextToSize(contentText, 170);
-  doc.text(lines, 20, y);
-  
-  return y + (lines.length * 5.2);
-}
 
 // ==========================================================================
 // EXPORTADORES A ARCHIVOS FÍSICOS
@@ -729,134 +686,288 @@ export function downloadPDF(data, type, filename, reportFormat) {
   doc.save(filename || `${data.title.replace(/\s+/g, '_')}.pdf`);
 }
 
-// 3. Exportador a Excel (.xlsx)
-export function downloadXLSX(data, filename, selectedCharts = ['pie', 'bar', 'line']) {
+// Ajusta el ancho de las columnas de una hoja de cálculo según el contenido
+function autofitColumns(ws, rows) {
+  if (!rows || rows.length === 0) return;
+  const colWidths = [];
+  rows.forEach(row => {
+    if (!row) return;
+    row.forEach((cell, colIdx) => {
+      let cellText = "";
+      if (cell !== null && cell !== undefined) {
+        if (typeof cell === 'object') {
+          if (cell.v !== undefined) {
+            cellText = cell.v.toString();
+          } else if (cell.f) {
+            cellText = "123,456.78"; // valor estimado para fórmulas
+          }
+        } else {
+          cellText = cell.toString();
+        }
+      }
+      const len = cellText.length;
+      if (!colWidths[colIdx] || len > colWidths[colIdx]) {
+        colWidths[colIdx] = len;
+      }
+    });
+  });
+  ws["!cols"] = colWidths.map(w => ({ wch: Math.max(w + 3, 10) }));
+}
+
+// Obtiene el contenido de una pestaña como Array of Arrays (con soporte de fórmulas y formatos de celda)
+function getSheetAOAData(data, sheetKey, selectedCharts = ['pie', 'bar', 'line']) {
+  const sheet = data[sheetKey];
+  if (!sheet) return [];
+
+  if (sheetKey === 'hoja1') {
+    const integrantes = Array.isArray(sheet.integrantes) ? sheet.integrantes.join(", ") : sheet.integrantes || "";
+    const portadaData = [
+      ["PROYECTO:", sheet.proyecto],
+      ["INSTITUCIÓN:", sheet.institucion],
+      ["INTEGRANTES:", integrantes],
+      ["FECHA:", sheet.fecha],
+      ["GENERADOR:", "DocuGenius Neural AI Engine"]
+    ];
+    return [
+      [sheet.titulo.toUpperCase()],
+      [],
+      ...portadaData
+    ];
+  }
+
+  const titleLower = (sheet.titulo || "").toLowerCase();
+
+  // Si es la hoja de Presupuesto clásica
+  if (sheetKey === 'hoja3' && titleLower.includes("presupuesto")) {
+    const budgetRows = sheet.rows.map((row, idx) => {
+      const rowNum = idx + 4;
+      const qty = Number(row[1]) || 0;
+      const price = Number(row[2]) || 0;
+      return [
+        row[0],
+        { t: 'n', v: qty, z: '0' },
+        { t: 'n', v: price, z: '"$"#,##0.00' },
+        { t: 'n', f: `B${rowNum}*C${rowNum}`, z: '"$"#,##0.00' }
+      ];
+    });
+
+    const totalRowNum = sheet.rows.length + 4;
+    const formulas = sheet.formulas || { label: "Total General", value: 0 };
+    return [
+      [sheet.titulo.toUpperCase()],
+      [],
+      sheet.headers,
+      ...budgetRows,
+      [formulas.label, "", "", { t: 'n', f: `SUM(D4:D${totalRowNum - 1})`, z: '"$"#,##0.00' }]
+    ];
+  }
+
+  // Si es la hoja de Estadísticas clásica
+  if (sheetKey === 'hoja5' && titleLower.includes("estadística")) {
+    const statsRows = sheet.rows.map(row => {
+      return row.map((cell, colIdx) => {
+        if (colIdx > 0) {
+          const strVal = String(cell).trim();
+          if (strVal.endsWith('%')) {
+            const num = parseFloat(strVal) / 100;
+            return { t: 'n', v: num, z: '0.0%' };
+          }
+          const numVal = parseFloat(strVal);
+          if (!isNaN(numVal)) {
+            if (colIdx === 3) {
+              return { t: 'n', v: numVal / 100, z: '0.0%' };
+            }
+            return { t: 'n', v: numVal, z: '0.0' };
+          }
+        }
+        return cell;
+      });
+    });
+
+    return [
+      [sheet.titulo.toUpperCase()],
+      [],
+      sheet.headers,
+      ...statsRows
+    ];
+  }
+
+  // Si es la hoja de instrucciones de Gráficos clásica
+  if (sheetKey === 'hoja6' && titleLower.includes("gráfico") && sheet.rows && sheet.rows[0] && sheet.rows[0].length === 3) {
+    const chartTypesMapping = {
+      'pie': "Diagrama de Pastel (Torta)",
+      'bar': "Gráfico de Barras (Comparativo)",
+      'line': "Gráfico de Líneas (Tendencias)"
+    };
+
+    const chartRows = sheet.rows.map(row => {
+      return [
+        row[0],
+        { t: 'n', v: Number(row[1]) || 0, z: '0' },
+        { t: 'n', v: Number(row[2]) || 0, z: '0' }
+      ];
+    });
+
+    const tableStartRow = 3 + 2 + (selectedCharts.length * 2) + 2; 
+    const rangeLabels = `A${tableStartRow}:A${tableStartRow + sheet.rows.length}`;
+    const rangeReal = `C${tableStartRow}:C${tableStartRow + sheet.rows.length}`;
+    const rangeAll = `A${tableStartRow - 1}:C${tableStartRow + sheet.rows.length - 1}`;
+
+    const chartInstructions = [
+      ["CONFIGURACIÓN DE GRÁFICOS SOLICITADOS"],
+      ["Los siguientes tipos de gráficos se configuraron para esta tabla:"],
+    ];
+
+    selectedCharts.forEach((type, index) => {
+      const name = chartTypesMapping[type] || type;
+      chartInstructions.push([`${index + 1}. ${name}`]);
+      if (type === 'pie') {
+        chartInstructions.push([`   -> Instrucción: Seleccione la columna de Categorías (${rangeLabels}) y la de Real (${rangeReal}). Vaya a la barra superior en 'Insertar' > 'Gráfico Circular / Pastel'.`]);
+      } else if (type === 'bar') {
+        chartInstructions.push([`   -> Instrucción: Seleccione todo el rango de datos (${rangeAll}). Vaya a la barra superior en 'Insertar' > 'Gráfico de Columnas o Barras agrupadas'.`]);
+      } else if (type === 'line') {
+        chartInstructions.push([`   -> Instrucción: Seleccione todo el rango de datos (${rangeAll}). Vaya a la barra superior en 'Insertar' > 'Gráfico de Líneas con marcadores'.`]);
+      }
+    });
+
+    chartInstructions.push([]);
+    chartInstructions.push(["TABLA DE DATOS PARA LOS GRÁFICOS"]);
+
+    return [
+      [sheet.titulo.toUpperCase()],
+      [],
+      ...chartInstructions,
+      sheet.headers,
+      ...chartRows
+    ];
+  }
+
+  // De lo contrario, renderizar la pestaña de forma genérica
+  const formattedRows = sheet.rows.map(row => {
+    return row.map((cell, colIdx) => {
+      if (cell === null || cell === undefined) return "";
+      
+      const header = (sheet.headers[colIdx] || "").toLowerCase();
+      const isPercentageHeader = header.includes('%');
+      const isCurrencyHeader = header.includes('$') || header.includes('costo') || header.includes('total');
+      
+      const numVal = parseFloat(cell);
+      if (typeof cell === 'number' || (!isNaN(numVal) && isFinite(cell))) {
+        const val = typeof cell === 'number' ? cell : numVal;
+        if (isPercentageHeader) {
+          return { t: 'n', v: val, z: '0.0"%"' };
+        } else if (isCurrencyHeader) {
+          return { t: 'n', v: val, z: '"$"#,##0.00' };
+        } else {
+          return { t: 'n', v: val, z: '0' };
+        }
+      }
+      return cell;
+    });
+  });
+
+  return [
+    [sheet.titulo.toUpperCase()],
+    [],
+    sheet.headers,
+    ...formattedRows
+  ];
+}
+
+// 3. Exportador a Hojas de Cálculo (Soporta .xlsx, .xls y .csv)
+export function downloadXLSX(data, filename, selectedCharts = ['pie', 'bar', 'line'], format = 'xlsx', activeSheetKey = 'hoja1') {
+  if (format === 'csv') {
+    // Generar CSV para la pestaña activa
+    const sheetData = getSheetAOAData(data, activeSheetKey, selectedCharts);
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    autofitColumns(ws, sheetData);
+    
+    const csvContent = XLSX.utils.sheet_to_csv(ws);
+    // Incluir UTF-8 BOM para soporte correcto de tildes y caracteres especiales en Excel
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    
+    const cleanSheetTitle = data[activeSheetKey].titulo.replace(/\s+/g, '_');
+    a.download = filename || `${data.title.replace(/\s+/g, '_')}_${cleanSheetTitle}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
   const wb = XLSX.utils.book_new();
 
-  // Portada
-  const portadaData = [
-    ["PROYECTO:", data.hoja1.proyecto],
-    ["INSTITUCIÓN:", data.hoja1.institucion],
-    ["INTEGRANTES:", data.hoja1.integrantes.join(", ")],
-    ["FECHA:", data.hoja1.fecha],
-    ["GENERADOR:", "DocuGenius Neural AI Engine"]
-  ];
-  const ws1 = XLSX.utils.aoa_to_sheet([
-    [data.hoja1.titulo.toUpperCase()],
-    [],
-    ...portadaData
-  ]);
-  ws1["!cols"] = [{ wch: 18 }, { wch: 60 }];
-  XLSX.utils.book_append_sheet(wb, ws1, "Portada");
+  // Determinar si es la plantilla de presupuesto original para agrupar resultados y estadísticas
+  const isOriginalTemplate = data.hoja4 && data.hoja4.titulo === "Resultados" && data.hoja5 && data.hoja5.titulo === "Estadísticas";
 
-  // Cronograma
-  const ws2 = XLSX.utils.aoa_to_sheet([
-    [data.hoja2.titulo.toUpperCase()],
-    [],
-    data.hoja2.headers,
-    ...data.hoja2.rows
-  ]);
-  ws2["!cols"] = [{ wch: 45 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 15 }];
-  XLSX.utils.book_append_sheet(wb, ws2, "Cronograma");
+  if (isOriginalTemplate) {
+    // Portada
+    const ws1Data = getSheetAOAData(data, 'hoja1', selectedCharts);
+    const ws1 = XLSX.utils.aoa_to_sheet(ws1Data);
+    autofitColumns(ws1, ws1Data);
+    XLSX.utils.book_append_sheet(wb, ws1, data.hoja1.titulo);
 
-  // Presupuesto
-  const budgetRows = data.hoja3.rows.map((row, idx) => {
-    const rowNum = idx + 4;
-    return [
-      row[0],
-      row[1],
-      row[2],
-      { t: 'n', f: `B${rowNum}*C${rowNum}` }
+    // Cronograma
+    const ws2Data = getSheetAOAData(data, 'hoja2', selectedCharts);
+    const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
+    autofitColumns(ws2, ws2Data);
+    XLSX.utils.book_append_sheet(wb, ws2, data.hoja2.titulo);
+
+    // Presupuesto
+    const ws3Data = getSheetAOAData(data, 'hoja3', selectedCharts);
+    const ws3 = XLSX.utils.aoa_to_sheet(ws3Data);
+    autofitColumns(ws3, ws3Data);
+    XLSX.utils.book_append_sheet(wb, ws3, data.hoja3.titulo);
+
+    // Resultados y KPIs (Consolidado hoja4 + hoja5)
+    const ws4Data = [
+      ...getSheetAOAData(data, 'hoja4', selectedCharts),
+      [],
+      [],
+      ...getSheetAOAData(data, 'hoja5', selectedCharts)
     ];
-  });
+    const ws4 = XLSX.utils.aoa_to_sheet(ws4Data);
+    autofitColumns(ws4, ws4Data);
+    XLSX.utils.book_append_sheet(wb, ws4, "Resultados y KPIs");
 
-  const totalRowNum = data.hoja3.rows.length + 4;
-  const budgetSheetData = [
-    [data.hoja3.titulo.toUpperCase()],
-    [],
-    data.hoja3.headers,
-    ...budgetRows,
-    [data.hoja3.formulas.label, "", "", { t: 'n', f: `SUM(D4:D${totalRowNum - 1})` }]
-  ];
-
-  const ws3 = XLSX.utils.aoa_to_sheet(budgetSheetData);
-  ws3["!cols"] = [{ wch: 35 }, { wch: 12 }, { wch: 18 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, ws3, "Presupuesto");
-
-  // Resultados
-  const ws4 = XLSX.utils.aoa_to_sheet([
-    [data.hoja4.titulo.toUpperCase()],
-    [],
-    data.hoja4.headers,
-    ...data.hoja4.rows
-  ]);
-  ws4["!cols"] = [{ wch: 35 }, { wch: 20 }, { wch: 45 }];
-  XLSX.utils.book_append_sheet(wb, ws4, "Resultados");
-
-  // Estadísticas
-  const ws5 = XLSX.utils.aoa_to_sheet([
-    [data.hoja5.titulo.toUpperCase()],
-    [],
-    data.hoja5.headers,
-    ...data.hoja5.rows
-  ]);
-  ws5["!cols"] = [{ wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 18 }];
-  XLSX.utils.book_append_sheet(wb, ws5, "Estadísticas");
-
-  // Gráficos (Datos con Instrucciones Dinámicas)
-  const chartTypesMapping = {
-    'pie': "Diagrama de Pastel (Torta)",
-    'bar': "Gráfico de Barras (Comparativo)",
-    'line': "Gráfico de Líneas (Tendencias)"
-  };
-
-  const tableStartRow = 3 + 2 + (selectedCharts.length * 2) + 2; 
-  const rangeLabels = `A${tableStartRow}:A${tableStartRow + data.hoja6.rows.length}`;
-  const rangeMeta = `B${tableStartRow}:B${tableStartRow + data.hoja6.rows.length}`;
-  const rangeReal = `C${tableStartRow}:C${tableStartRow + data.hoja6.rows.length}`;
-  const rangeAll = `A${tableStartRow - 1}:C${tableStartRow + data.hoja6.rows.length - 1}`;
-
-  const chartInstructions = [
-    ["CONFIGURACIÓN DE GRÁFICOS SOLICITADOS"],
-    ["Los siguientes tipos de gráficos se configuraron para esta tabla:"],
-  ];
-
-  selectedCharts.forEach((type, index) => {
-    const name = chartTypesMapping[type] || type;
-    chartInstructions.push([`${index + 1}. ${name}`]);
-    if (type === 'pie') {
-      chartInstructions.push([`   -> Instrucción: Seleccione la columna de Categorías (${rangeLabels}) y la de Real (${rangeReal}). Vaya a la barra superior en 'Insertar' > 'Gráfico Circular / Pastel'.`]);
-    } else if (type === 'bar') {
-      chartInstructions.push([`   -> Instrucción: Seleccione todo el rango de datos (${rangeAll}). Vaya a la barra superior en 'Insertar' > 'Gráfico de Columnas o Barras agrupadas'.`]);
-    } else if (type === 'line') {
-      chartInstructions.push([`   -> Instrucción: Seleccione todo el rango de datos (${rangeAll}). Vaya a la barra superior en 'Insertar' > 'Gráfico de Líneas con marcadores'.`]);
+    // Datos Gráficos
+    if (data.hoja6) {
+      const ws6Data = getSheetAOAData(data, 'hoja6', selectedCharts);
+      const ws6 = XLSX.utils.aoa_to_sheet(ws6Data);
+      autofitColumns(ws6, ws6Data);
+      XLSX.utils.book_append_sheet(wb, ws6, data.hoja6.titulo);
     }
-  });
 
-  chartInstructions.push([]);
-  chartInstructions.push(["TABLA DE DATOS PARA LOS GRÁFICOS"]);
+    // Evidencias
+    if (data.hoja7) {
+      const ws7Data = getSheetAOAData(data, 'hoja7', selectedCharts);
+      const ws7 = XLSX.utils.aoa_to_sheet(ws7Data);
+      autofitColumns(ws7, ws7Data);
+      XLSX.utils.book_append_sheet(wb, ws7, data.hoja7.titulo);
+    }
+  } else {
+    // Generación dinámica de pestañas basada en las hojas reales presentes
+    const sheetKeys = Object.keys(data).filter(key => key.startsWith('hoja') && data[key]);
+    sheetKeys.forEach(sheetKey => {
+      const sheet = data[sheetKey];
+      const wsData = getSheetAOAData(data, sheetKey, selectedCharts);
+      if (wsData && wsData.length > 0) {
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        autofitColumns(ws, wsData);
+        XLSX.utils.book_append_sheet(wb, ws, sheet.titulo);
+      }
+    });
+  }
 
-  const ws6 = XLSX.utils.aoa_to_sheet([
-    [data.hoja6.titulo.toUpperCase()],
-    [],
-    ...chartInstructions,
-    data.hoja6.headers,
-    ...data.hoja6.rows
-  ]);
-  ws6["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 25 }];
-  XLSX.utils.book_append_sheet(wb, ws6, "Datos Gráficos");
-
-  // Evidencias
-  const ws7 = XLSX.utils.aoa_to_sheet([
-    [data.hoja7.titulo.toUpperCase()],
-    [],
-    data.hoja7.headers,
-    ...data.hoja7.rows
-  ]);
-  ws7["!cols"] = [{ wch: 15 }, { wch: 40 }, { wch: 45 }];
-  XLSX.utils.book_append_sheet(wb, ws7, "Evidencias");
-
-  XLSX.writeFile(wb, filename || `${data.title.replace(/\s+/g, '_')}.xlsx`);
+  // Escribir el libro según el formato elegido
+  if (format === 'xls') {
+    XLSX.writeFile(wb, filename || `${data.title.replace(/\s+/g, '_')}.xls`, { bookType: 'xls' });
+  } else {
+    XLSX.writeFile(wb, filename || `${data.title.replace(/\s+/g, '_')}.xlsx`, { bookType: 'xlsx' });
+  }
 }
 
 // 4. Exportador a PowerPoint (.pptx)
@@ -946,7 +1057,6 @@ export function downloadPPTX(data, filename, paletteColors) {
   const bgDark = { color: bgCol };
   const textTitle = { x: 0.8, y: 1.4, w: 11.7, h: 2.2, fontSize: 34, bold: true, color: titleCol, fontFace: 'Trebuchet MS', shrinkText: true };
   const textSubtitle = { x: 0.8, y: 3.8, w: 11.7, h: 2.0, fontSize: 16, color: mutedCol, fontFace: 'Arial', shrinkText: true };
-  const textFooter = { x: 0.8, y: 6.3, w: 11.7, h: 0.4, fontSize: 9.5, color: mutedCol, fontFace: 'Arial', shrinkText: true };
 
   // Portada
   let s1 = pptx.addSlide();
@@ -955,7 +1065,10 @@ export function downloadPPTX(data, filename, paletteColors) {
   s1.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.25, h: 7.5, fill: { color: primaryCol } });
   s1.addText(data.title.toUpperCase(), textTitle);
   s1.addText(`INTEGRANTES:\n${data.members}\n\nINSTITUCIÓN:\n${data.institution}\n\nFECHA:\n${data.date}`, textSubtitle);
-  s1.addText("DocuGenius Neural AI Presentation System", textFooter);
+  
+  // Footer portada
+  s1.addText("DocuGenius Neural AI Presentation System", { x: 0.8, y: 6.8, w: 6.0, h: 0.4, fontSize: 9.5, color: mutedCol, fontFace: 'Arial' });
+  s1.addText("Diapositiva 1 de " + data.slides.length, { x: 6.8, y: 6.8, w: 5.7, h: 0.4, fontSize: 9.5, color: mutedCol, fontFace: 'Arial', align: 'right' });
 
   // Slides restantes
   data.slides.forEach((slideData, idx) => {
@@ -963,7 +1076,67 @@ export function downloadPPTX(data, filename, paletteColors) {
     
     let s = pptx.addSlide();
     
-    // Configurar fondo de pantalla de la diapositiva
+    // 1. Detectar si es una diapositiva separadora de sección (Agenda, Conclusiones, Recomendaciones, etc.)
+    const isDividerSlide = ['agenda', 'conclusiones', 'recomendaciones', 'preguntas', 'agradecimientos', 'referencias'].some(term => 
+      slideData.title.toLowerCase().includes(term)
+    );
+
+    if (isDividerSlide) {
+      s.background = { color: primaryCol };
+      
+      // Detalles estéticos
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 13.3, h: 0.15, fill: { color: cardCol } });
+      s.addShape(pptx.ShapeType.rect, { x: 0, y: 7.35, w: 13.3, h: 0.15, fill: { color: cardCol } });
+      
+      s.addText(slideData.title, { 
+        x: 1.0, 
+        y: 1.8, 
+        w: 11.3, 
+        h: 1.2, 
+        fontSize: 38, 
+        bold: true, 
+        color: 'FFFFFF', 
+        fontFace: 'Trebuchet MS', 
+        align: 'center', 
+        valign: 'middle' 
+      });
+      
+      const parsed = parseSlideText(slideData.content);
+      const textPara = [];
+      
+      if (parsed.type === 'blocks') {
+        parsed.data.forEach(block => {
+          if (block.title) {
+            textPara.push({ text: block.title + "\n\n", options: { bold: true, color: 'FFFFFF', fontSize: 18 } });
+          }
+          block.bullets.forEach((bullet, bIdx) => {
+            const isLast = bIdx === block.bullets.length - 1;
+            textPara.push({ 
+              text: bullet + (isLast ? "" : "\n"), 
+              options: { color: 'FFFFFF', fontSize: 14, fontFace: 'Arial', bullet: bullet.length > 2 } 
+            });
+          });
+        });
+      } else {
+        textPara.push({ text: slideData.content, options: { color: 'FFFFFF', fontSize: 14, fontFace: 'Arial', align: 'center' } });
+      }
+      
+      s.addText(textPara, { 
+        x: 1.5, 
+        y: 3.2, 
+        w: 10.3, 
+        h: 3.2, 
+        valign: 'top', 
+        align: 'center', 
+        shrinkText: true 
+      });
+      
+      s.addText("DocuGenius Neural AI Engine", { x: 0.8, y: 6.8, w: 6.0, h: 0.4, fontSize: 9.5, color: 'FFFFFF', fontFace: 'Arial' });
+      s.addText(`Diapositiva ${slideData.num} de ${data.slides.length}`, { x: 6.8, y: 6.8, w: 5.7, h: 0.4, fontSize: 9.5, color: 'FFFFFF', fontFace: 'Arial', align: 'right' });
+      return;
+    }
+
+    // Configurar fondo de pantalla de la diapositiva normal
     if (slideData.image && slideData.imagePosition === 'background') {
       if (slideData.image.startsWith('data:')) {
         s.background = { data: slideData.image };
@@ -998,7 +1171,6 @@ export function downloadPPTX(data, filename, paletteColors) {
         imgOptions.w = 5.6;
         imgOptions.h = 4.4;
       } else {
-        // right (predeterminado)
         imgOptions.x = 6.8;
         imgOptions.y = 1.6;
         imgOptions.w = 5.6;
@@ -1034,22 +1206,87 @@ export function downloadPPTX(data, filename, paletteColors) {
         const headers = lines[0].split("|").map(h => h.trim());
         const rows = lines.slice(1).map(r => r.split("|").map(c => c.trim()));
         
-        const tableData = [
-          headers.map(h => ({ text: h, options: { bold: true, color: 'FFFFFF', fill: { color: primaryCol }, align: 'center', shrinkText: true } })),
-          ...rows.map(row => row.map(c => ({ text: c, options: { color: textCol, fill: { color: cardCol }, shrinkText: true } })))
-        ];
-        
-        const colW = hasImage
-          ? (headers.length === 2 ? [2.8, 2.8] : [1.8, 1.9, 1.9])
-          : (headers.length === 2 ? [5.8, 5.9] : [3.5, 4.1, 4.1]);
+        // Comprobar si la tabla contiene comparaciones numéricas para agregar un gráfico nativo
+        let chartData = null;
+        const chartLabels = [];
+        const series1Data = [];
+        const series2Data = [];
 
-        s.addTable(tableData, { 
-          x: textX, 
-          y: 1.6, 
-          w: textW, 
-          colWidths: colW, 
-          border: { type: 'solid', color: borderCol, size: 1 } 
+        rows.forEach(row => {
+          if (row.length >= 3) {
+            const label = row[0];
+            const val1Str = row[1].replace(/[^0-9.]/g, '');
+            const val2Str = row[2].replace(/[^0-9.]/g, '');
+            const val1 = parseFloat(val1Str);
+            const val2 = parseFloat(val2Str);
+            if (!isNaN(val1) && !isNaN(val2)) {
+              chartLabels.push(label);
+              series1Data.push(val1);
+              series2Data.push(val2);
+            }
+          }
         });
+
+        if (chartLabels.length > 0) {
+          const series1Name = headers[1] || "Antes";
+          const series2Name = headers[2] || "Después";
+          chartData = [
+            { name: series1Name, labels: chartLabels, values: series1Data },
+            { name: series2Name, labels: chartLabels, values: series2Data }
+          ];
+        }
+
+        // Si tenemos datos de gráfico y no hay imagen lateral, renderizamos tabla a la izq y gráfico a la der.
+        if (chartData && !hasImage) {
+          // Tabla en la izquierda
+          const tableData = [
+            headers.map(h => ({ text: h, options: { bold: true, color: 'FFFFFF', fill: { color: primaryCol }, align: 'center', shrinkText: true } })),
+            ...rows.map(row => row.map(c => ({ text: c, options: { color: textCol, fill: { color: cardCol }, shrinkText: true } })))
+          ];
+          s.addTable(tableData, { 
+            x: 0.8, 
+            y: 1.6, 
+            w: 5.6, 
+            colWidths: headers.length === 2 ? [2.8, 2.8] : [1.8, 1.9, 1.9], 
+            border: { type: 'solid', color: borderCol, size: 1 } 
+          });
+
+          // Gráfico de Columnas nativo en la derecha
+          const chartOptions = {
+            x: 6.8,
+            y: 1.6,
+            w: 5.6,
+            h: 4.4,
+            showLegend: true,
+            legendPos: 'b',
+            title: "Comparación Estadística",
+            titleColor: titleCol,
+            titleFontSize: 12,
+            chartColors: [primaryCol, '10B981'],
+            valAxisLabelColor: textCol,
+            catAxisLabelColor: textCol,
+            valAxisLineColor: borderCol,
+            catAxisLineColor: borderCol
+          };
+          s.addChart(pptx.ChartType.col, chartData, chartOptions);
+        } else {
+          // Comportamiento estándar de tabla completa
+          const tableData = [
+            headers.map(h => ({ text: h, options: { bold: true, color: 'FFFFFF', fill: { color: primaryCol }, align: 'center', shrinkText: true } })),
+            ...rows.map(row => row.map(c => ({ text: c, options: { color: textCol, fill: { color: cardCol }, shrinkText: true } })))
+          ];
+          const colW = hasImage
+            ? (headers.length === 2 ? [2.8, 2.8] : [1.8, 1.9, 1.9])
+            : (headers.length === 2 ? [5.8, 5.9] : [3.5, 4.1, 4.1]);
+
+          s.addTable(tableData, { 
+            x: textX, 
+            y: 1.6, 
+            w: textW, 
+            colWidths: colW, 
+            border: { type: 'solid', color: borderCol, size: 1 } 
+          });
+        }
       }
     } else if (parsed.type === 'blocks') {
       const blocks = parsed.data;
@@ -1064,7 +1301,7 @@ export function downloadPPTX(data, filename, paletteColors) {
             const textY = cardY + 0.2;
             const textH = cardH - 0.4;
 
-            s.addShape(pptx.ShapeType.rect, { x: textX, y: cardY, w: textW, h: cardH, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+            s.addShape(pptx.ShapeType.roundRect, { x: textX, y: cardY, w: textW, h: cardH, fill: { color: cardCol }, line: { color: borderCol, width: 1 }, rectRadius: 0.04 });
             
             const bLength = block.bullets.reduce((sum, b) => sum + b.length, 0) + (block.title?.length || 0);
             const bCount = block.bullets.length;
@@ -1094,7 +1331,7 @@ export function downloadPPTX(data, filename, paletteColors) {
         } else {
           // Un solo bloque de texto
           const mainBlock = blocks[0] || { title: "", bullets: [] };
-          s.addShape(pptx.ShapeType.rect, { x: textX, y: 1.6, w: textW, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+          s.addShape(pptx.ShapeType.roundRect, { x: textX, y: 1.6, w: textW, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 }, rectRadius: 0.04 });
 
           const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
           const mainCount = mainBlock.bullets.length;
@@ -1125,7 +1362,7 @@ export function downloadPPTX(data, filename, paletteColors) {
             });
           });
 
-          s.addText(textPara, { x: textInnerX, y: 1.8, w: textInnerW, h: 4.0, valign: 'top', shrinkText: true });
+          s.addText(textPara, { x: textInnerX, y: textInnerW, w: textInnerW, h: 4.0, valign: 'top', shrinkText: true });
         }
       } else {
         // Sin imagen: comportamiento estándar de 1 o 2 columnas de tarjetas
@@ -1135,7 +1372,7 @@ export function downloadPPTX(data, filename, paletteColors) {
           const rightBlock = blocks[1];
 
           // Tarjeta Izquierda
-          s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+          s.addShape(pptx.ShapeType.roundRect, { x: 0.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 }, rectRadius: 0.04 });
           
           const leftLength = leftBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (leftBlock.title?.length || 0);
           const leftCount = leftBlock.bullets.length;
@@ -1168,7 +1405,7 @@ export function downloadPPTX(data, filename, paletteColors) {
           s.addText(leftTextPara, { x: 1.1, y: 1.8, w: 5.0, h: 4.0, valign: 'top', shrinkText: true });
 
           // Tarjeta Derecha
-          s.addShape(pptx.ShapeType.rect, { x: 6.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+          s.addShape(pptx.ShapeType.roundRect, { x: 6.8, y: 1.6, w: 5.6, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 }, rectRadius: 0.04 });
           
           const rightLength = rightBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (rightBlock.title?.length || 0);
           const rightCount = rightBlock.bullets.length;
@@ -1202,7 +1439,7 @@ export function downloadPPTX(data, filename, paletteColors) {
 
         } else {
           // Diseño de Tarjeta Única Centrada
-          s.addShape(pptx.ShapeType.rect, { x: 0.8, y: 1.6, w: 11.7, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 } });
+          s.addShape(pptx.ShapeType.roundRect, { x: 0.8, y: 1.6, w: 11.7, h: 4.4, fill: { color: cardCol }, line: { color: borderCol, width: 1 }, rectRadius: 0.04 });
 
           const mainBlock = blocks[0] || { title: "", bullets: [] };
           const mainLength = mainBlock.bullets.reduce((sum, b) => sum + b.length, 0) + (mainBlock.title?.length || 0);
@@ -1241,8 +1478,401 @@ export function downloadPPTX(data, filename, paletteColors) {
       }
     }
     
-    s.addText(`Slide ${slideData.num} / ${data.slides.length}`, textFooter);
+    // Page numbering and branding in regular slides
+    s.addText("DocuGenius Neural AI Engine", { x: 0.8, y: 6.8, w: 6.0, h: 0.4, fontSize: 9.5, color: mutedCol, fontFace: 'Arial' });
+    s.addText(`Diapositiva ${slideData.num} de ${data.slides.length}`, { x: 6.8, y: 6.8, w: 5.7, h: 0.4, fontSize: 9.5, color: mutedCol, fontFace: 'Arial', align: 'right' });
   });
 
   pptx.writeFile({ fileName: filename || `${data.title.replace(/\s+/g, '_')}.pptx` });
+}
+
+// ==========================================================================
+// 5. Exportador PPTX para Oficios (IOficioSolicitud / IOficioRespuesta)
+//    Estructura basada en los tipos:
+//      - IOficioSolicitud: lugarFecha, numeroOficio, destinatario(Persona),
+//        asunto, cuerpo{ saludo, antecedentes, peticion }, despedida,
+//        remitente(Persona), cc[], anexos[]
+//      - IOficioRespuesta: + referenciaOficioSolicitud,
+//        cuerpo{ acuseRecibo, resolucion, detallesAdicionales }
+// ==========================================================================
+export function downloadOficioPPTX(data, filename, paletteColors) {
+  const pptx = new pptxgen();
+  pptx.layout = 'LAYOUT_16x9';
+
+  const palette = paletteColors || PPTX_PALETTES.galactic;
+  const isResponse = data.type === 'response';
+
+  // ── Color tokens ──────────────────────────────────────────────────────────
+  const bgCol     = cleanHex(palette.background);
+  const cardCol   = cleanHex(palette.cardBg);
+  const primCol   = cleanHex(palette.primary);
+  const titleCol  = cleanHex(palette.title);
+  const textCol   = cleanHex(palette.text);
+  const mutedCol  = cleanHex(palette.muted);
+  // Accent para respuesta = verde; para solicitud = primario de la paleta
+  const accentCol = isResponse ? '10B981' : primCol;
+
+  const SLIDE_W = 13.3;
+  const SLIDE_H = 7.5;
+  const MARGIN  = 0.6;
+  const BAR_W   = 0.22;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const bg = (s) => { s.background = { color: bgCol }; };
+
+  const addAccentBar = (s) => {
+    s.addShape(pptx.ShapeType.rect, {
+      x: 0, y: 0, w: BAR_W, h: SLIDE_H,
+      fill: { color: accentCol }
+    });
+  };
+
+  const addFooter = (s, pageLabel) => {
+    s.addText('DocuGenius · Oficio Oficial', {
+      x: BAR_W + MARGIN, y: SLIDE_H - 0.38, w: 7, h: 0.3,
+      fontSize: 8.5, color: mutedCol, fontFace: 'Arial'
+    });
+    if (pageLabel) {
+      s.addText(pageLabel, {
+        x: SLIDE_W - 3.5, y: SLIDE_H - 0.38, w: 3.2, h: 0.3,
+        fontSize: 8.5, color: mutedCol, fontFace: 'Arial', align: 'right'
+      });
+    }
+  };
+
+  const addSectionHeader = (s, text) => {
+    s.addShape(pptx.ShapeType.rect, {
+      x: BAR_W + MARGIN, y: 0.18, w: SLIDE_W - BAR_W - MARGIN * 2, h: 0.72,
+      fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }
+    });
+    s.addText(text.toUpperCase(), {
+      x: BAR_W + MARGIN + 0.15, y: 0.22, w: SLIDE_W - BAR_W - MARGIN * 2 - 0.3, h: 0.62,
+      fontSize: 13, bold: true, color: titleCol, fontFace: 'Trebuchet MS',
+      valign: 'middle', shrinkText: true
+    });
+  };
+
+  const fieldBox = (s, label, value, x, y, w, h, accentBackground = false) => {
+    s.addShape(pptx.ShapeType.roundRect, {
+      x, y, w, h,
+      fill: { color: accentBackground ? accentCol : cardCol },
+      line: { color: accentBackground ? accentCol : accentCol, width: 0.5 },
+      rectRadius: 0.04
+    });
+    const labelPart = { text: label + '  ', options: { bold: true, color: accentBackground ? 'FFFFFF' : titleCol, fontSize: 9.5, fontFace: 'Trebuchet MS' } };
+    const valuePart = { text: value || '—', options: { color: accentBackground ? 'FFFFFF' : textCol, fontSize: 11, fontFace: 'Arial' } };
+    s.addText([labelPart, valuePart], {
+      x: x + 0.12, y: y + 0.05, w: w - 0.24, h: h - 0.1,
+      valign: 'middle', shrinkText: true
+    });
+  };
+
+  const textBlock = (s, label, body, x, y, w, h) => {
+    // Encabezado de sección
+    s.addText(label, {
+      x, y, w, h: 0.34,
+      fontSize: 10, bold: true, color: accentCol === primCol ? titleCol : `${accentCol}`,
+      fontFace: 'Trebuchet MS'
+    });
+    // Cuerpo de texto
+    s.addShape(pptx.ShapeType.roundRect, {
+      x, y: y + 0.38, w, h: h - 0.38,
+      fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+    });
+    s.addText(body || '', {
+      x: x + 0.14, y: y + 0.48, w: w - 0.28, h: h - 0.58,
+      fontSize: 11, color: textCol, fontFace: 'Arial',
+      valign: 'top', wrap: true, shrinkText: true
+    });
+  };
+
+  // ── Helper: extraer Persona display ──────────────────────────────────────
+  const personaLine = (p) => {
+    if (!p) return '—';
+    const parts = [p.nombre, p.cargo, p.institucion, p.ciudad].filter(Boolean);
+    return parts.join('  ·  ');
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SLIDE 1 — PORTADA DEL OFICIO
+  // ══════════════════════════════════════════════════════════════════════════
+  const s1 = pptx.addSlide();
+  bg(s1);
+  addAccentBar(s1);
+
+  // Encabezado institucional
+  s1.addShape(pptx.ShapeType.rect, {
+    x: BAR_W, y: 0, w: SLIDE_W - BAR_W, h: 1.3,
+    fill: { color: cardCol }
+  });
+  s1.addShape(pptx.ShapeType.rect, {
+    x: BAR_W, y: 1.3, w: SLIDE_W - BAR_W, h: 0.04,
+    fill: { color: accentCol }
+  });
+  s1.addText(data.encabezado?.logoText || (isResponse ? 'OFICIO DE RESPUESTA' : 'OFICIO DE SOLICITUD'), {
+    x: BAR_W + MARGIN, y: 0.05, w: SLIDE_W - BAR_W - MARGIN * 2, h: 1.2,
+    fontSize: 14, bold: true, color: titleCol, fontFace: 'Trebuchet MS',
+    valign: 'middle', shrinkText: true
+  });
+
+  // Número de oficio + Fecha  (dos cajas lado a lado)
+  fieldBox(s1, 'N.º Oficio:', data.encabezado?.oficioNum || data.numeroOficio || '—',
+    BAR_W + MARGIN, 1.52, 5.5, 0.62);
+  fieldBox(s1, 'Lugar y Fecha:', data.encabezado?.lugarFecha || data.lugarYFecha || '—',
+    BAR_W + MARGIN + 5.7, 1.52, SLIDE_W - BAR_W - MARGIN - 5.7 - MARGIN, 0.62);
+
+  // Referencia a oficio previo (solo en respuesta)
+  if (isResponse && data.referenciaOficioPrevio) {
+    fieldBox(s1, 'En referencia a:', data.referenciaOficioPrevio,
+      BAR_W + MARGIN, 2.32, SLIDE_W - BAR_W - MARGIN * 2, 0.55, true);
+  }
+
+  // DESTINATARIO
+  const destY = isResponse && data.referenciaOficioPrevio ? 3.08 : 2.32;
+  s1.addText((isResponse ? 'PARA:' : 'DIRIGIDO A:'), {
+    x: BAR_W + MARGIN, y: destY, w: 2, h: 0.3,
+    fontSize: 9, bold: true, color: accentCol === primCol ? mutedCol : accentCol, fontFace: 'Trebuchet MS'
+  });
+  s1.addShape(pptx.ShapeType.roundRect, {
+    x: BAR_W + MARGIN, y: destY + 0.3, w: SLIDE_W - BAR_W - MARGIN * 2, h: 1.0,
+    fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+  });
+  const destData = data.destinatario || {};
+  s1.addText([
+    { text: (destData.tratamiento ? destData.tratamiento + ' ' : '') + (destData.nombre || '—'), options: { bold: true, color: titleCol, fontSize: 14, fontFace: 'Trebuchet MS' } },
+    { text: '\n' + [destData.cargo, destData.institucion, destData.ciudad].filter(Boolean).join('  ·  '), options: { color: mutedCol, fontSize: 11, fontFace: 'Arial' } }
+  ], {
+    x: BAR_W + MARGIN + 0.15, y: destY + 0.35, w: SLIDE_W - BAR_W - MARGIN * 2 - 0.3, h: 0.9,
+    valign: 'middle', shrinkText: true
+  });
+
+  // ASUNTO
+  const asuntoY = destY + 1.45;
+  fieldBox(s1, 'ASUNTO:', data.asunto || '—',
+    BAR_W + MARGIN, asuntoY, SLIDE_W - BAR_W - MARGIN * 2, 0.72);
+
+  // TIPO badge
+  s1.addShape(pptx.ShapeType.roundRect, {
+    x: BAR_W + MARGIN, y: asuntoY + 0.9, w: 3.2, h: 0.44,
+    fill: { color: accentCol }, rectRadius: 0.06
+  });
+  s1.addText(isResponse ? '✅  Oficio de Respuesta' : '📋  Oficio de Solicitud', {
+    x: BAR_W + MARGIN + 0.1, y: asuntoY + 0.92, w: 3.0, h: 0.38,
+    fontSize: 10, bold: true, color: 'FFFFFF', fontFace: 'Trebuchet MS', valign: 'middle'
+  });
+
+  addFooter(s1, null);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SLIDE 2 — SALUDO + ANTECEDENTES / CONTEXTO
+  // IOficioSolicitud: cuerpo.saludo + cuerpo.antecedentes
+  // IOficioRespuesta: cuerpo.acuseRecibo (+ saludo)
+  // ══════════════════════════════════════════════════════════════════════════
+  const s2 = pptx.addSlide();
+  bg(s2);
+  addAccentBar(s2);
+  addSectionHeader(s2, isResponse ? 'Acuse de Recibo' : 'Antecedentes y Contexto');
+
+  const saludoText = data.saludo || '';
+  const antecText  = isResponse
+    ? (data.cuerpoRecepcion || data.cuerpo?.acuseRecibo || '')
+    : (data.cuerpoContexto || data.cuerpo?.saludo || '');
+  const previoText = isResponse
+    ? (data.cuerpoAnalisis || data.cuerpo?.detallesAdicionales || '')
+    : (data.cuerpoAntecedentes || data.cuerpo?.antecedentes || '');
+
+  textBlock(s2, 'Saludo', saludoText, BAR_W + MARGIN, 1.1, SLIDE_W - BAR_W - MARGIN * 2, 0.98);
+  textBlock(s2, isResponse ? 'Recepción' : 'Contexto', antecText, BAR_W + MARGIN, 2.2, SLIDE_W - BAR_W - MARGIN * 2, 1.6);
+  textBlock(s2, isResponse ? 'Análisis' : 'Antecedentes', previoText, BAR_W + MARGIN, 3.98, SLIDE_W - BAR_W - MARGIN * 2, 2.0);
+  addFooter(s2, 'Página 2');
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SLIDE 3 — PETICIÓN (solicitud) / RESOLUCIÓN (respuesta)
+  // IOficioSolicitud: cuerpo.peticion (list)
+  // IOficioRespuesta: cuerpo.resolucion + resolucionAdoptada
+  // ══════════════════════════════════════════════════════════════════════════
+  const s3 = pptx.addSlide();
+  bg(s3);
+  addAccentBar(s3);
+  addSectionHeader(s3, isResponse ? 'Resolución Adoptada' : 'Peticiones Concretas');
+
+  if (isResponse) {
+    // Resolución en bloque destacado
+    const resolucion = data.resolucionAdoptada || data.cuerpo?.resolucion || '';
+    s3.addShape(pptx.ShapeType.roundRect, {
+      x: BAR_W + MARGIN, y: 1.1, w: SLIDE_W - BAR_W - MARGIN * 2, h: 2.4,
+      fill: { color: '063F2E' }, line: { color: accentCol, width: 1.5 }, rectRadius: 0.06
+    });
+    s3.addText([
+      { text: '✅  ', options: { fontSize: 16, color: accentCol } },
+      { text: resolucion, options: { fontSize: 13, bold: true, color: 'FFFFFF', fontFace: 'Trebuchet MS' } }
+    ], {
+      x: BAR_W + MARGIN + 0.18, y: 1.18, w: SLIDE_W - BAR_W - MARGIN * 2 - 0.36, h: 2.22,
+      valign: 'middle', wrap: true, shrinkText: true
+    });
+
+    // Condiciones adicionales
+    const condiciones = data.condiciones || [];
+    if (condiciones.length > 0) {
+      s3.addText('Condiciones y Observaciones:', {
+        x: BAR_W + MARGIN, y: 3.7, w: SLIDE_W - BAR_W - MARGIN * 2, h: 0.35,
+        fontSize: 10.5, bold: true, color: titleCol, fontFace: 'Trebuchet MS'
+      });
+      const condPara = condiciones.map((c, i) => ({
+        text: `${i + 1}.  ${c}` + (i < condiciones.length - 1 ? '\n' : ''),
+        options: { color: textCol, fontSize: 11, fontFace: 'Arial', bullet: false }
+      }));
+      s3.addShape(pptx.ShapeType.roundRect, {
+        x: BAR_W + MARGIN, y: 4.1, w: SLIDE_W - BAR_W - MARGIN * 2, h: 2.0,
+        fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+      });
+      s3.addText(condPara, {
+        x: BAR_W + MARGIN + 0.14, y: 4.2, w: SLIDE_W - BAR_W - MARGIN * 2 - 0.28, h: 1.8,
+        valign: 'top', wrap: true, shrinkText: true
+      });
+    }
+
+    // cuerpo de desarrollo adicional
+    const cuerpoDesarrollo = data.cuerpoDesarrollo || data.cuerpo?.detallesAdicionales || '';
+    if (!condiciones.length && cuerpoDesarrollo) {
+      textBlock(s3, 'Detalles Adicionales', cuerpoDesarrollo,
+        BAR_W + MARGIN, 3.7, SLIDE_W - BAR_W - MARGIN * 2, 2.3);
+    }
+
+  } else {
+    // Peticiones en lista numerada
+    const peticionList = Array.isArray(data.peticion) ? data.peticion : [data.cuerpo?.peticion || data.cuerpoDesarrollo || ''];
+    const cuerpoDesarrolloText = data.cuerpoDesarrollo || data.cuerpo?.peticion || '';
+
+    // Encabezado de petición
+    textBlock(s3, 'Por lo expuesto, solicito respetuosamente:', cuerpoDesarrolloText,
+      BAR_W + MARGIN, 1.1, SLIDE_W - BAR_W - MARGIN * 2, 1.5);
+
+    if (peticionList.length > 0 && peticionList[0] !== cuerpoDesarrolloText) {
+      s3.addText('Peticiones concretas:', {
+        x: BAR_W + MARGIN, y: 2.75, w: SLIDE_W - BAR_W - MARGIN * 2, h: 0.35,
+        fontSize: 10.5, bold: true, color: titleCol, fontFace: 'Trebuchet MS'
+      });
+      s3.addShape(pptx.ShapeType.roundRect, {
+        x: BAR_W + MARGIN, y: 3.15, w: SLIDE_W - BAR_W - MARGIN * 2, h: 2.95,
+        fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+      });
+      const petPara = peticionList.map((p, i) => ({
+        text: `${i + 1}.  ${p}` + (i < peticionList.length - 1 ? '\n' : ''),
+        options: { color: textCol, fontSize: 11.5, fontFace: 'Arial', bullet: false, lineSpacing: 18 }
+      }));
+      s3.addText(petPara, {
+        x: BAR_W + MARGIN + 0.14, y: 3.25, w: SLIDE_W - BAR_W - MARGIN * 2 - 0.28, h: 2.75,
+        valign: 'top', wrap: true, shrinkText: true
+      });
+    }
+  }
+
+  addFooter(s3, 'Página 3');
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SLIDE 4 — DESPEDIDA + FIRMA (Remitente como Persona)
+  // IOficioSolicitud / IOficioRespuesta: despedida, remitente{ nombre, cargo, institucion }
+  // ══════════════════════════════════════════════════════════════════════════
+  const s4 = pptx.addSlide();
+  bg(s4);
+  addAccentBar(s4);
+  addSectionHeader(s4, 'Cierre y Firma');
+
+  textBlock(s4, 'Despedida', data.despedida || '',
+    BAR_W + MARGIN, 1.1, SLIDE_W - BAR_W - MARGIN * 2, 1.6);
+
+  // Bloque de firma visual
+  s4.addText('Atentamente,', {
+    x: BAR_W + MARGIN, y: 2.9, w: 4, h: 0.38,
+    fontSize: 11, color: mutedCol, fontFace: 'Arial', italic: true
+  });
+
+  // Línea de firma
+  s4.addShape(pptx.ShapeType.line, {
+    x: BAR_W + MARGIN, y: 4.05, w: 4.5, h: 0,
+    line: { color: accentCol, width: 1, dashType: 'dash' }
+  });
+
+  // Datos del remitente (Persona tipada)
+  const firma = data.firma || {};
+  s4.addShape(pptx.ShapeType.roundRect, {
+    x: BAR_W + MARGIN, y: 4.15, w: 5.8, h: 2.05,
+    fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+  });
+  s4.addText([
+    { text: firma.nombre || '—', options: { bold: true, color: titleCol, fontSize: 15, fontFace: 'Trebuchet MS' } },
+    { text: '\n' + (firma.cargo || ''), options: { color: textCol, fontSize: 11.5, fontFace: 'Arial' } },
+    { text: '\n' + (firma.institucion || ''), options: { color: mutedCol, fontSize: 10.5, fontFace: 'Arial' } },
+    ...(firma.cedula ? [{ text: '\nC.I. ' + firma.cedula, options: { color: mutedCol, fontSize: 10, fontFace: 'Arial' } }] : []),
+    ...(firma.ciudad ? [{ text: '\n' + firma.ciudad, options: { color: mutedCol, fontSize: 10, fontFace: 'Arial', italic: true } }] : [])
+  ], {
+    x: BAR_W + MARGIN + 0.2, y: 4.22, w: 5.4, h: 1.9,
+    valign: 'top', shrinkText: true
+  });
+
+  addFooter(s4, 'Página 4');
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SLIDE 5 — DISTRIBUCIÓN Cc + ANEXOS (si existen)
+  // IOficioSolicitud/Respuesta: cc[], anexos[]
+  // ══════════════════════════════════════════════════════════════════════════
+  const copias  = data.copias  || [];
+  const anexos  = data.anexos  || [];
+  if (copias.length > 0 || anexos.length > 0) {
+    const s5 = pptx.addSlide();
+    bg(s5);
+    addAccentBar(s5);
+    addSectionHeader(s5, 'Distribución y Anexos');
+
+    const colW = copias.length > 0 && anexos.length > 0
+      ? (SLIDE_W - BAR_W - MARGIN * 2) / 2 - 0.2
+      : SLIDE_W - BAR_W - MARGIN * 2;
+    const col2X = BAR_W + MARGIN + colW + 0.4;
+
+    if (copias.length > 0) {
+      s5.addText('Distribución (Cc):', {
+        x: BAR_W + MARGIN, y: 1.1, w: colW, h: 0.35,
+        fontSize: 10.5, bold: true, color: titleCol, fontFace: 'Trebuchet MS'
+      });
+      s5.addShape(pptx.ShapeType.roundRect, {
+        x: BAR_W + MARGIN, y: 1.5, w: colW, h: Math.min(copias.length * 0.52 + 0.3, 4.6),
+        fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+      });
+      const ccPara = copias.map((c, i) => ({
+        text: `• ${c}` + (i < copias.length - 1 ? '\n' : ''),
+        options: { color: textCol, fontSize: 11, fontFace: 'Arial' }
+      }));
+      s5.addText(ccPara, {
+        x: BAR_W + MARGIN + 0.14, y: 1.6, w: colW - 0.28, h: 4.4,
+        valign: 'top', shrinkText: true
+      });
+    }
+
+    if (anexos.length > 0) {
+      const aX = copias.length > 0 ? col2X : BAR_W + MARGIN;
+      const aW = copias.length > 0 ? colW : colW;
+      s5.addText('Anexos:', {
+        x: aX, y: 1.1, w: aW, h: 0.35,
+        fontSize: 10.5, bold: true, color: titleCol, fontFace: 'Trebuchet MS'
+      });
+      s5.addShape(pptx.ShapeType.roundRect, {
+        x: aX, y: 1.5, w: aW, h: Math.min(anexos.length * 0.52 + 0.3, 4.6),
+        fill: { color: cardCol }, line: { color: accentCol, width: 0.5 }, rectRadius: 0.04
+      });
+      const anexoItems = Array.isArray(anexos) ? anexos : [String(anexos)];
+      const anexPara = anexoItems.map((a, i) => ({
+        text: `${i + 1}.  ${a}` + (i < anexoItems.length - 1 ? '\n' : ''),
+        options: { color: textCol, fontSize: 11, fontFace: 'Arial' }
+      }));
+      s5.addText(anexPara, {
+        x: aX + 0.14, y: 1.6, w: aW - 0.28, h: 4.4,
+        valign: 'top', wrap: true, shrinkText: true
+      });
+    }
+
+    addFooter(s5, 'Página 5');
+  }
+
+  pptx.writeFile({ fileName: filename || `oficio_${data.type || 'documento'}.pptx` });
 }

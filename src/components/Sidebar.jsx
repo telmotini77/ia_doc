@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
-  FileText, Presentation, FileSpreadsheet, Mail, RefreshCw, 
-  Terminal, Shield, Settings, CheckSquare, Square, ChevronDown, ChevronUp, Cpu, Cloud
+  FileText, Presentation, FileSpreadsheet, Mail, 
+  Terminal, Settings, CheckSquare, Square, ChevronDown, ChevronUp, Cloud
 } from 'lucide-react';
 
 export default function Sidebar({
@@ -17,6 +17,14 @@ export default function Sidebar({
   setAuthors,
   advisor,
   setAdvisor,
+  oficioDignatario,
+  setOficioDignatario,
+  oficioSolicitante,
+  setOficioSolicitante,
+  oficioSolicitanteCedula,
+  setOficioSolicitanteCedula,
+  oficioMotivo,
+  setOficioMotivo,
   selectedCharts,
   onChartToggle,
   aiMode,
@@ -45,8 +53,37 @@ export default function Sidebar({
   const handleFormatChange = (key, value) => {
     setReportFormat(prev => ({
       ...prev,
-      [key]: value
+      [key]: value,
+      formatPreset: 'custom'
     }));
+  };
+
+  const handlePresetChange = (preset) => {
+    if (preset === 'apa7') {
+      setReportFormat(prev => ({
+        ...prev,
+        formatPreset: 'apa7',
+        paperSize: 'carta',
+        font: 'times12',
+        margin: '2.54',
+        spacing: '2.0',
+        alignment: 'left',
+        indent: '1.27',
+        reportType: prev.reportType === 'ieee' ? 'tecnico' : prev.reportType
+      }));
+    } else if (preset === 'ieee') {
+      setReportFormat(prev => ({
+        ...prev,
+        formatPreset: 'ieee',
+        paperSize: 'a4',
+        font: 'times12',
+        margin: 'standard',
+        spacing: '1.15',
+        alignment: 'justify',
+        indent: '0',
+        reportType: 'ieee'
+      }));
+    }
   };
 
   const handleLogoUpload = (e) => {
@@ -401,203 +438,323 @@ export default function Sidebar({
 
           {isMetadataOpen && (
             <div className="metadata-form-panel animate-slide-down">
-              <div className="custom-meta-toggle">
-                <button
-                  className={`toggle-switch-btn ${customMetadata ? 'active' : ''}`}
-                  onClick={() => setCustomMetadata(!customMetadata)}
-                >
-                  <div className="switch-dot"></div>
-                </button>
-                <span>Forzar metadatos personalizados</span>
-              </div>
 
-              {customMetadata && (
+              {/* ====== OFICIOS: form específico, sin formato ====== */}
+              {(docType === 'petition' || docType === 'response') ? (
                 <div className="meta-inputs-grid">
-                  <div className="meta-field">
-                    <label>Título del Proyecto / Tema</label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Ej. Sistema de Riego Automatizado"
-                      className="premium-input"
-                    />
-                  </div>
-                  <div className="meta-field">
-                    <label>Institución (Opcional)</label>
-                    <input
-                      type="text"
-                      value={institution}
-                      onChange={(e) => setInstitution(e.target.value)}
-                      placeholder="Ej. Universidad Central (Opcional)"
-                      className="premium-input"
-                    />
-                  </div>
-                  <div className="meta-field">
-                    <label>Integrantes / Autores</label>
-                    <input
-                      type="text"
-                      value={authors}
-                      onChange={(e) => setAuthors(e.target.value)}
-                      placeholder="Ej. Telmo Tini, Juan Pérez"
-                      className="premium-input"
-                    />
-                  </div>
-                  <div className="meta-field">
-                    <label>Tutor / Docente</label>
-                    <input
-                      type="text"
-                      value={advisor}
-                      onChange={(e) => setAdvisor(e.target.value)}
-                      placeholder="Ej. Ing. Carlos Ruiz"
-                      className="premium-input"
-                    />
-                  </div>
-                  
-                  {/* Logo / Imagen de Portada */}
-                  <div className="meta-field">
-                    <label>Logo de Portada</label>
-                    <div className="logo-upload-container">
-                      {coverLogo ? (
-                        <div className="logo-preview-wrapper">
-                          <img src={coverLogo} alt="Logo Portada" className="logo-preview-thumbnail" />
-                          <button 
-                            type="button" 
-                            className="btn-remove-logo"
-                            onClick={() => setCoverLogo('')}
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="logo-upload-button-wrapper">
-                          <label className="logo-upload-label">
-                            <span>Subir Imagen</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleLogoUpload}
-                              style={{ display: 'none' }}
-                            />
-                          </label>
-                        </div>
-                      )}
+                  {/* Tag visual del tipo */}
+                  <div style={{
+                    gridColumn: 'span 2',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: docType === 'petition' ? 'rgba(139,92,246,0.12)' : 'rgba(16,185,129,0.12)',
+                    border: `1px solid ${docType === 'petition' ? '#7c3aed55' : '#05966955'}`,
+                    borderRadius: '8px', padding: '8px 12px', marginBottom: '4px'
+                  }}>
+                    <span style={{ fontSize: '18px' }}>{docType === 'petition' ? '📋' : '✅'}</span>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '12px', fontWeight: '700', color: docType === 'petition' ? '#a78bfa' : '#34d399' }}>
+                        {docType === 'petition' ? 'Oficio de Solicitud' : 'Oficio de Respuesta'}
+                      </p>
+                      <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-muted)' }}>
+                        {docType === 'petition'
+                          ? 'Completa los datos para personalizar el oficio'
+                          : 'Indica a quién va dirigida la respuesta'}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Alineación de Portada */}
-                  <div className="meta-field">
-                    <label>Alineación en Portada</label>
-                    <div className="align-buttons-group">
-                      {['left', 'center', 'right'].map((align) => (
-                        <button
-                          key={align}
-                          type="button"
-                          className={`align-btn ${coverAlign === align ? 'active' : ''}`}
-                          onClick={() => setCoverAlign(align)}
-                        >
-                          {align === 'left' ? 'Izquierda' : align === 'center' ? 'Centro' : 'Derecha'}
-                        </button>
-                      ))}
-                    </div>
+                  {/* DIGNIDAD / CARGO (a quién va dirigido) */}
+                  <div className="meta-field" style={{ gridColumn: 'span 2' }}>
+                    <label style={{ color: docType === 'petition' ? '#a78bfa' : '#34d399', fontWeight: '700' }}>
+                      {docType === 'petition' ? 'Dignidad / Cargo del Destinatario' : 'Cargo de Quien Recibió la Solicitud'}
+                    </label>
+                    <input
+                      type="text"
+                      value={oficioDignatario}
+                      onChange={(e) => setOficioDignatario(e.target.value)}
+                      placeholder={docType === 'petition'
+                        ? 'Ej. Director Académico, Rector, Ministro de...'
+                        : 'Ej. Director del Departamento de Gestión'}
+                      className="premium-input"
+                    />
                   </div>
 
-                  {/* Tamaños de Letras en Portada */}
-                  <div className="meta-field">
-                    <label className="sub-section-label">Tamaños en Portada</label>
-                    <div className="sliders-container">
-                      <div className="slider-item">
-                        <div className="slider-labels">
-                          <span>Título:</span>
-                          <span className="slider-value">{coverSizes.title}px</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="16"
-                          max="40"
-                          value={coverSizes.title}
-                          onChange={(e) => handleSizeChange('title', parseInt(e.target.value))}
-                          className="premium-slider"
-                        />
-                      </div>
+                  {/* NOMBRE COMPLETO DEL SOLICITANTE */}
+                  <div className="meta-field" style={{ gridColumn: 'span 2' }}>
+                    <label>
+                      {docType === 'petition' ? 'Nombre Completo del Solicitante' : 'Nombre Completo del Peticionario'}
+                    </label>
+                    <input
+                      type="text"
+                      value={oficioSolicitante}
+                      onChange={(e) => setOficioSolicitante(e.target.value)}
+                      placeholder="Ej. Telmo Patricio Tini Muñoz"
+                      className="premium-input"
+                    />
+                  </div>
 
-                      <div className="slider-item">
-                        <div className="slider-labels">
-                          <span>Autores:</span>
-                          <span className="slider-value">{coverSizes.authors}px</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="9"
-                          max="20"
-                          value={coverSizes.authors}
-                          onChange={(e) => handleSizeChange('authors', parseInt(e.target.value))}
-                          className="premium-slider"
-                        />
-                      </div>
+                  {/* NÚMERO DE CÉDULA */}
+                  <div className="meta-field" style={{ gridColumn: 'span 2' }}>
+                    <label>Número de Cédula del Solicitante</label>
+                    <input
+                      type="text"
+                      value={oficioSolicitanteCedula}
+                      onChange={(e) => setOficioSolicitanteCedula(e.target.value)}
+                      placeholder="Ej. 1712345678"
+                      className="premium-input"
+                    />
+                  </div>
 
-                      <div className="slider-item">
-                        <div className="slider-labels">
-                          <span>Tutor:</span>
-                          <span className="slider-value">{coverSizes.advisor}px</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="9"
-                          max="20"
-                          value={coverSizes.advisor}
-                          onChange={(e) => handleSizeChange('advisor', parseInt(e.target.value))}
-                          className="premium-slider"
-                        />
-                      </div>
+                  {/* MOTIVO */}
+                  <div className="meta-field" style={{ gridColumn: 'span 2' }}>
+                    <label>
+                      {docType === 'petition' ? 'Motivo de la Solicitud' : 'Motivo de la Respuesta'}
+                    </label>
+                    <input
+                      type="text"
+                      value={oficioMotivo}
+                      onChange={(e) => setOficioMotivo(e.target.value)}
+                      placeholder={docType === 'petition'
+                        ? 'Ej. Autorización de pasantías, Solicitud de beca...'
+                        : 'Ej. En respuesta a su solicitud de autorización...'}
+                      className="premium-input"
+                    />
+                  </div>
 
-                      <div className="slider-item">
-                        <div className="slider-labels">
-                          <span>Curso:</span>
-                          <span className="slider-value">{coverSizes.course}px</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="9"
-                          max="20"
-                          value={coverSizes.course}
-                          onChange={(e) => handleSizeChange('course', parseInt(e.target.value))}
-                          className="premium-slider"
-                        />
-                      </div>
-
-                      <div className="slider-item">
-                        <div className="slider-labels">
-                          <span>Institución:</span>
-                          <span className="slider-value">{coverSizes.institution}px</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="9"
-                          max="20"
-                          value={coverSizes.institution}
-                          onChange={(e) => handleSizeChange('institution', parseInt(e.target.value))}
-                          className="premium-slider"
-                        />
-                      </div>
-
-                      <div className="slider-item">
-                        <div className="slider-labels">
-                          <span>Fecha:</span>
-                          <span className="slider-value">{coverSizes.date}px</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="9"
-                          max="18"
-                          value={coverSizes.date}
-                          onChange={(e) => handleSizeChange('date', parseInt(e.target.value))}
-                          className="premium-slider"
-                        />
-                      </div>
-                    </div>
+                  {/* Nota informativa */}
+                  <div style={{ gridColumn: 'span 2', background: 'rgba(255,255,255,0.04)', borderRadius: '6px', padding: '8px 10px' }}>
+                    <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                      ℹ️ Los datos ingresados se aplicarán automáticamente al generar el oficio. También puedes editar el documento directamente después de generarlo.
+                    </p>
                   </div>
                 </div>
+
+              ) : (
+                /* ====== INFORME / OTROS: form genérico original ====== */
+                <>
+                  {docType === 'report' && (
+                    <div className="preset-selector-container" style={{ marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <span className="sub-section-label" style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Formato del Documento</span>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        <button
+                          type="button"
+                          className={`premium-btn ${reportFormat.formatPreset === 'apa7' ? 'btn-primary' : 'btn-secondary'}`}
+                          onClick={() => handlePresetChange('apa7')}
+                          style={{ padding: '8px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: 0, fontWeight: '500' }}
+                        >
+                          <span>Norma APA 7</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`premium-btn ${reportFormat.formatPreset === 'ieee' ? 'btn-primary' : 'btn-secondary'}`}
+                          onClick={() => handlePresetChange('ieee')}
+                          style={{ padding: '8px 12px', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', margin: 0, fontWeight: '500' }}
+                        >
+                          <span>Formato IEEE</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="custom-meta-toggle">
+                    <button
+                      className={`toggle-switch-btn ${customMetadata ? 'active' : ''}`}
+                      onClick={() => setCustomMetadata(!customMetadata)}
+                    >
+                      <div className="switch-dot"></div>
+                    </button>
+                    <span>Forzar metadatos personalizados</span>
+                  </div>
+
+                  {customMetadata && (
+                    <div className="meta-inputs-grid">
+                      <div className="meta-field">
+                        <label>Título del Proyecto / Tema</label>
+                        <input
+                          type="text"
+                          value={title}
+                          onChange={(e) => setTitle(e.target.value)}
+                          placeholder="Ej. Sistema de Riego Automatizado"
+                          className="premium-input"
+                        />
+                      </div>
+                      <div className="meta-field">
+                        <label>Institución (Opcional)</label>
+                        <input
+                          type="text"
+                          value={institution}
+                          onChange={(e) => setInstitution(e.target.value)}
+                          placeholder="Ej. Universidad Central (Opcional)"
+                          className="premium-input"
+                        />
+                      </div>
+                      <div className="meta-field">
+                        <label>Integrantes / Autores</label>
+                        <input
+                          type="text"
+                          value={authors}
+                          onChange={(e) => setAuthors(e.target.value)}
+                          placeholder="Ej. Telmo Tini, Juan Pérez"
+                          className="premium-input"
+                        />
+                      </div>
+                      <div className="meta-field">
+                        <label>Tutor / Docente</label>
+                        <input
+                          type="text"
+                          value={advisor}
+                          onChange={(e) => setAdvisor(e.target.value)}
+                          placeholder="Ej. Ing. Carlos Ruiz"
+                          className="premium-input"
+                        />
+                      </div>
+                      
+                      {/* Logo / Imagen de Portada */}
+                      <div className="meta-field">
+                        <label>Logo de Portada</label>
+                        <div className="logo-upload-container">
+                          {coverLogo ? (
+                            <div className="logo-preview-wrapper">
+                              <img src={coverLogo} alt="Logo Portada" className="logo-preview-thumbnail" />
+                              <button 
+                                type="button" 
+                                className="btn-remove-logo"
+                                onClick={() => setCoverLogo('')}
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="logo-upload-button-wrapper">
+                              <label className="logo-upload-label">
+                                <span>Subir Imagen</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleLogoUpload}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Alineación de Portada */}
+                      <div className="meta-field">
+                        <label>Alineación en Portada</label>
+                        <div className="align-buttons-group">
+                          {['left', 'center', 'right'].map((align) => (
+                            <button
+                              key={align}
+                              type="button"
+                              className={`align-btn ${coverAlign === align ? 'active' : ''}`}
+                              onClick={() => setCoverAlign(align)}
+                            >
+                              {align === 'left' ? 'Izquierda' : align === 'center' ? 'Centro' : 'Derecha'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Tamaños de Letras en Portada */}
+                      <div className="meta-field">
+                        <label className="sub-section-label">Tamaños en Portada</label>
+                        <div className="sliders-container">
+                          <div className="slider-item">
+                            <div className="slider-labels">
+                              <span>Título:</span>
+                              <span className="slider-value">{coverSizes.title}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="16"
+                              max="40"
+                              value={coverSizes.title}
+                              onChange={(e) => handleSizeChange('title', parseInt(e.target.value))}
+                              className="premium-slider"
+                            />
+                          </div>
+
+                          <div className="slider-item">
+                            <div className="slider-labels">
+                              <span>Autores:</span>
+                              <span className="slider-value">{coverSizes.authors}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="9"
+                              max="20"
+                              value={coverSizes.authors}
+                              onChange={(e) => handleSizeChange('authors', parseInt(e.target.value))}
+                              className="premium-slider"
+                            />
+                          </div>
+
+                          <div className="slider-item">
+                            <div className="slider-labels">
+                              <span>Tutor:</span>
+                              <span className="slider-value">{coverSizes.advisor}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="9"
+                              max="20"
+                              value={coverSizes.advisor}
+                              onChange={(e) => handleSizeChange('advisor', parseInt(e.target.value))}
+                              className="premium-slider"
+                            />
+                          </div>
+
+                          <div className="slider-item">
+                            <div className="slider-labels">
+                              <span>Curso:</span>
+                              <span className="slider-value">{coverSizes.course}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="9"
+                              max="20"
+                              value={coverSizes.course}
+                              onChange={(e) => handleSizeChange('course', parseInt(e.target.value))}
+                              className="premium-slider"
+                            />
+                          </div>
+
+                          <div className="slider-item">
+                            <div className="slider-labels">
+                              <span>Institución:</span>
+                              <span className="slider-value">{coverSizes.institution}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="9"
+                              max="20"
+                              value={coverSizes.institution}
+                              onChange={(e) => handleSizeChange('institution', parseInt(e.target.value))}
+                              className="premium-slider"
+                            />
+                          </div>
+
+                          <div className="slider-item">
+                            <div className="slider-labels">
+                              <span>Fecha:</span>
+                              <span className="slider-value">{coverSizes.date}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="9"
+                              max="18"
+                              value={coverSizes.date}
+                              onChange={(e) => handleSizeChange('date', parseInt(e.target.value))}
+                              className="premium-slider"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

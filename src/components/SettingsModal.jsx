@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Settings, X, Cpu, Cloud, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
 export default function SettingsModal({ 

@@ -54,7 +54,6 @@ export const TRAINING_DATASET = [
   { text: "presupuestos contables prediccion de de gastos mensuales en la nube", label: "finance" }
 ];
 
-const BACKEND_URL = "http://localhost:8000";
 
 // Clase puente para la Red Neuronal en Python
 // --- MOTOR DE MACHINE LEARNING Y GENERACIÓN LOCAL EN NAVEGADOR (FALLBACK OFFLINE) ---
@@ -358,6 +357,9 @@ function parsePromptJS(prompt) {
 }
 
 export function generateLocalContentJS(prompt, type, predictionResult, reportType = 'tecnico', presentationStyle = 'informe', scientificPapers = [], wikipediaData = []) {
+  // Kept in the public signature for compatibility with the document workspace.
+  // The local generator deliberately does not use external research inputs.
+  void [predictionResult, reportType, presentationStyle, scientificPapers, wikipediaData];
   const metadata = parsePromptJS(prompt);
   const title = metadata.title;
   const institution = metadata.institution;
@@ -555,7 +557,7 @@ export function generateLocalContentJS(prompt, type, predictionResult, reportTyp
         nombre: authors[0],
         cargo: "Coordinador de Proyecto",
         cedula: "1700000000-0",
-        institucion,
+        institucion: institution,
         ciudad: "Quito"
       },
       copias: ["Archivo General", "Secretaría Académica"],
@@ -596,7 +598,7 @@ export function generateLocalContentJS(prompt, type, predictionResult, reportTyp
         nombre: advisor,
         cargo: "Director General de Planificación",
         cedula: "1799999999-9",
-        institucion,
+        institucion: institution,
         ciudad: "Quito"
       },
       copias: ["Archivo General", "Departamento Técnico"],
@@ -618,114 +620,42 @@ export class NeuralClassifier {
   }
 
   async train() {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/train_stats`);
-      if (!response.ok) {
-        throw new Error(`Error en el servidor al entrenar: ${response.statusText}`);
-      }
-      const data = await response.json();
-      this.isTrained = true;
-      return data;
-    } catch (err) {
-      console.warn("Conexión con el backend de Python fallida. Entrenando clasificador local en JS...", err);
-      
-      this.jsVectorizer = new JSVectorizer();
-      const texts = TRAINING_DATASET.map(item => item.text);
-      const labels = TRAINING_DATASET.map(item => item.label);
-      
-      this.jsVectorizer.fit(texts);
-      const X = texts.map(t => this.jsVectorizer.transform(t));
-      const y = labels.map(l => this.classes.indexOf(l));
-      
-      const inputDim = this.jsVectorizer.vocab.length;
-      const hiddenDim = 24;
-      const outputDim = this.classes.length;
-      
-      this.jsModel = new JSMLP(inputDim, hiddenDim, outputDim);
-      const { history, logs } = this.jsModel.trainBatch(X, y, 150, 0.15);
-      
-      this.isTrained = true;
-      return {
-        vocabSize: inputDim,
-        numClasses: outputDim,
-        finalLoss: history[history.length - 1].loss,
-        finalAccuracy: history[history.length - 1].accuracy,
-        history: history,
-        logs: logs
-      };
-    }
+    this.jsVectorizer = new JSVectorizer();
+    const texts = TRAINING_DATASET.map(item => item.text);
+    const labels = TRAINING_DATASET.map(item => item.label);
+    this.jsVectorizer.fit(texts);
+    const X = texts.map(t => this.jsVectorizer.transform(t));
+    const y = labels.map(l => this.classes.indexOf(l));
+    const inputDim = this.jsVectorizer.vocab.length;
+    const outputDim = this.classes.length;
+    this.jsModel = new JSMLP(inputDim, 24, outputDim);
+    const { history, logs } = this.jsModel.trainBatch(X, y, 150, 0.15);
+    this.isTrained = true;
+    return {
+      vocabSize: inputDim, numClasses: outputDim,
+      finalLoss: history[history.length - 1].loss,
+      finalAccuracy: history[history.length - 1].accuracy,
+      history, logs,
+    };
   }
 
   async predict(text) {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/predict`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text })
-      });
-      if (!response.ok) {
-        throw new Error(`Error en el servidor al clasificar: ${response.statusText}`);
-      }
-      return await response.json();
-    } catch (err) {
-      console.warn("Backend predict fallido, usando clasificador local en JS...", err);
-      
-      if (!this.jsModel || !this.jsVectorizer) {
-        await this.train();
-      }
-      
-      const x = this.jsVectorizer.transform(text);
-      const { probs } = this.jsModel.forward(x);
-      
-      let maxIdx = 0;
-      for (let k = 1; k < probs.length; k++) {
-        if (probs[k] > probs[maxIdx]) {
-          maxIdx = k;
-        }
-      }
-      
-      const confidence = probs[maxIdx];
-      const scores = {};
-      this.classes.forEach((c, idx) => {
-        scores[c] = probs[idx];
-      });
-      
-      const category = confidence > 0.35 ? this.classes[maxIdx] : "general";
-      return {
-        category,
-        confidence,
-        scores
-      };
-    }
+    if (!this.jsModel || !this.jsVectorizer) await this.train();
+    const x = this.jsVectorizer.transform(text);
+    const { probs } = this.jsModel.forward(x);
+    let maxIdx = 0;
+    for (let k = 1; k < probs.length; k++) if (probs[k] > probs[maxIdx]) maxIdx = k;
+    const scores = {};
+    this.classes.forEach((category, index) => { scores[category] = probs[index]; });
+    return { category: probs[maxIdx] > 0.35 ? this.classes[maxIdx] : "general", confidence: probs[maxIdx], scores };
   }
 }
 
-// Delegación al backend con fallback en navegador
+// Motor documental integrado: no depende de un proceso o puerto secundario.
 export async function generateLocalContent(prompt, type, predictionResult = null, reportType = 'tecnico', existingDoc = null, presentationStyle = 'informe', scientificPapers = [], wikipediaData = [], scientificSearch = true) {
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        docType: type,
-        predictionResult,
-        reportType,
-        existingDoc,
-        presentationStyle,
-        scientificPapers,
-        wikipediaData,
-        scientificSearch
-      })
-    });
-    if (!response.ok) {
-      throw new Error(`Error de red al generar documento: ${response.status}`);
-    }
-    return await response.json();
-  } catch (err) {
-    console.warn("Error al generar contenido mediante Python backend. Usando motor local en JS...", err);
-    return generateLocalContentJS(prompt, type, predictionResult, reportType, presentationStyle, scientificPapers, wikipediaData);
-  }
+  void existingDoc;
+  void scientificSearch;
+  return generateLocalContentJS(prompt, type, predictionResult, reportType, presentationStyle, scientificPapers, wikipediaData);
 }
 
 // Analizador estructurado de contenido de diapositiva
@@ -973,8 +903,16 @@ export async function generateGeminiContent(prompt, docType, apiKey, customMetad
 }`;
   }
 
+  const context = [
+    Object.keys(customMetadataObj).length ? `Requested metadata: ${JSON.stringify(customMetadataObj)}.` : '',
+    attachedFiles.length ? `Attached files: ${attachedFiles.map((file) => file.name).join(', ')}.` : '',
+    existingDoc ? 'Modify the current document while preserving compatible existing fields.' : '',
+    scientificPapers.length ? `Research references supplied: ${scientificPapers.map((paper) => paper.title).join('; ')}.` : '',
+    wikipediaData.length ? `Reference summaries supplied: ${wikipediaData.map((item) => item.title).join('; ')}.` : '',
+  ].filter(Boolean).join('\n');
   const promptText = `You are a document generator. Generate structured JSON for docType "${docType}" based on: "${prompt}".
 Schema details: ${schemaDescription}
+${context}
 Output raw JSON only. All text must be in Spanish.`;
 
   const requestBody = {

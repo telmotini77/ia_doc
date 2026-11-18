@@ -1,10 +1,12 @@
 import os
+import re
 import requests
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from io import BytesIO
 
 from model import PythonClassifier
 from generator import generate_local_content
@@ -113,6 +115,66 @@ def fetch_scientific_papers(query: str) -> List[Dict[str, Any]]:
 
 class PredictRequest(BaseModel):
     prompt: str
+
+
+class StudyExplainRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=120_000)
+
+
+def explain_study_extract(text: str) -> str:
+    """Produce a short, source-grounded explanation without adding facts."""
+    normalized = re.sub(r"\s+", " ", text).strip()
+    sentences = [sentence.strip() for sentence in re.findall(r"[^.!?]+[.!?]+", normalized) if len(sentence.strip()) > 24]
+    if not sentences:
+        return "El extracto no contiene suficientes oraciones completas para elaborar una explicación fiel."
+    selected = sentences[:4]
+    return "Explicación basada exclusivamente en el extracto cargado: " + " ".join(selected)
+
+
+def extract_study_text(filename: str, content: bytes) -> str:
+    """Extract text locally from a study document without sending it to a model."""
+    suffix = os.path.splitext(filename.lower())[1]
+    if suffix in {".txt", ".md", ".csv", ".json"}:
+        return content.decode("utf-8", errors="replace")
+    if suffix == ".pdf":
+        try:
+            from pypdf import PdfReader
+            return "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(content)).pages)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"No se pudo leer el PDF: {exc}") from exc
+    if suffix == ".docx":
+        try:
+            from docx import Document
+            document = Document(BytesIO(content))
+            return "\n".join(paragraph.text for paragraph in document.paragraphs if paragraph.text.strip())
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"No se pudo leer el DOCX: {exc}") from exc
+    if suffix in {".xlsx", ".xls"}:
+        try:
+            sheets = __import__("pandas").read_excel(BytesIO(content), sheet_name=None)
+            return "\n".join(f"[{name}]\n{sheet.to_csv(index=False)}" for name, sheet in sheets.items())
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"No se pudo leer la hoja de cálculo: {exc}") from exc
+    raise HTTPException(status_code=415, detail="Formato no compatible para extracción de texto.")
+
+
+@app.post("/api/study/extract")
+async def extract_study_document(file: UploadFile = File(...)):
+    """Return local extracted text for source-grounded study features."""
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="El archivo supera el límite de 20 MB.")
+    filename = file.filename or "documento"
+    text = extract_study_text(filename, content).strip()
+    if not text:
+        raise HTTPException(status_code=422, detail="No se encontró texto extraíble en el archivo.")
+    return {"filename": filename, "text": text[:120_000], "truncated": len(text) > 120_000}
+
+
+@app.post("/api/study/explain")
+def explain_study(req: StudyExplainRequest):
+    """Explain only what is present in the selected study extract."""
+    return {"content": explain_study_extract(req.text)}
 
 class GenerateRequest(BaseModel):
     prompt: str

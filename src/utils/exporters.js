@@ -1586,13 +1586,6 @@ export function downloadOficioPPTX(data, filename, paletteColors) {
     });
   };
 
-  // ── Helper: extraer Persona display ──────────────────────────────────────
-  const personaLine = (p) => {
-    if (!p) return '—';
-    const parts = [p.nombre, p.cargo, p.institucion, p.ciudad].filter(Boolean);
-    return parts.join('  ·  ');
-  };
-
   // ══════════════════════════════════════════════════════════════════════════
   // SLIDE 1 — PORTADA DEL OFICIO
   // ══════════════════════════════════════════════════════════════════════════

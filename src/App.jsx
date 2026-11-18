@@ -4,12 +4,12 @@ import Sidebar from './components/Sidebar';
 import SettingsModal from './components/SettingsModal';
 import ChatInterface from './components/ChatInterface';
 import DocumentPreview from './components/DocumentPreview';
+import StudyWorkspace from './components/StudyWorkspace';
 
 import { 
   generateLocalContent, 
   generateGeminiContent,
   NeuralClassifier,
-  TRAINING_DATASET,
   fetchScientificPapers,
   fetchWikipediaSummary
 } from './utils/documentGenerator';
@@ -25,6 +25,7 @@ import {
 import './App.css';
 
 export default function App() {
+  const [workspaceMode, setWorkspaceMode] = useState('documents');
   // State variables
   const [prompt, setPrompt] = useState('');
   const [docType, setDocType] = useState('report'); // 'report', 'presentation', 'spreadsheet', 'petition', 'response'
@@ -464,8 +465,13 @@ export default function App() {
         </div>
       )}
 
+      <nav className="app-mode-nav" aria-label="Áreas de DocuGenius">
+        <button className={workspaceMode === 'documents' ? 'active' : ''} onClick={() => setWorkspaceMode('documents')}>Generador documental</button>
+        <button className={workspaceMode === 'study' ? 'active' : ''} onClick={() => setWorkspaceMode('study')}>Estudio y atlas</button>
+      </nav>
+
       {/* Main layout */}
-      <div className="main-layout">
+      {workspaceMode === 'study' ? <StudyWorkspace onReturn={() => setWorkspaceMode('documents')} /> : <div className="main-layout">
         <Sidebar
           docType={docType}
           setDocType={setDocType}
@@ -562,7 +568,7 @@ export default function App() {
             onClearAll={handleClearAll}
           />
         </main>
-      </div>
+      </div>}
 
       {/* Settings Modal */}
       <SettingsModal

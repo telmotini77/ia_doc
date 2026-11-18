@@ -108,7 +108,10 @@ async function extractText(file) {
   const form = new FormData();
   form.append('file', file);
   const response = await fetch(studyApi('/api/study/extract'), { method: 'POST', body: form });
-  if (!response.ok) throw new Error('No se pudo extraer texto. Inicia el backend o usa un TXT/CSV.');
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || 'No se pudo extraer texto del archivo.');
+  }
   const data = await response.json();
   return (data.text || '').slice(0, 120_000);
 }
@@ -207,8 +210,12 @@ export default function StudyWorkspace({ onReturn }) {
         mainBookId: previous.mainBookId || imported[0]?.id || '',
       };
     });
-    setSelectedTopicId(imported[0]?.topics[0]?.id || selectedTopicId);
-    setStatus(`${imported.length} documento(s) incorporado(s).`);
+    const extracted = imported.filter((document) => document.extractionReady);
+    const failed = imported.filter((document) => !document.extractionReady);
+    setSelectedTopicId(extracted[0]?.topics[0]?.id || selectedTopicId);
+    setStatus(extracted.length
+      ? `${extracted.length} documento(s) listo(s) para estudiar.${failed.length ? ` ${failed.length} archivo(s) requieren revisión en la lista.` : ''}`
+      : `No se pudo extraer texto. Revisa el mensaje del archivo; si es un PDF escaneado, usa una versión con texto seleccionable.`);
   };
 
   const selectMainBook = (documentId) => {
@@ -331,7 +338,7 @@ export default function StudyWorkspace({ onReturn }) {
       {status && <div className="study-status"><Sparkles size={16} />{status}</div>}
 
       {activeTab === 'biblioteca' && <section className="study-grid two-columns">
-        <article className="study-card"><div className="card-heading"><FileUp size={18} /><h2>Libros y material</h2></div><label className="upload-study"><input type="file" multiple accept=".pdf,.docx,.xlsx,.csv,.txt,.md,.json,image/*" onChange={(event) => importDocuments(event.target.files)} /><FileUp size={22} /><strong>Subir documentos, atlas o guía del docente</strong><span>PDF, DOCX, XLSX, CSV y texto. El contenido se procesa dentro de Jarvis Integral.</span></label><div className="study-list">{study.documents.map((document) => <div className={`study-list-item ${study.mainBookId === document.id ? 'selected' : ''}`} key={document.id}><div><strong>{document.name}</strong><small>{document.extractionReady ? `${document.topics.length} tema(s) detectado(s)` : document.issue || 'Pendiente de extracción'}</small></div><button onClick={() => selectMainBook(document.id)}>{study.mainBookId === document.id ? 'Libro principal' : 'Usar como libro'}</button></div>)}</div></article>
+        <article className="study-card"><div className="card-heading"><FileUp size={18} /><h2>Libros y material</h2></div><label className="upload-study"><input type="file" multiple accept=".pdf,.docx,.xlsx,.csv,.txt,.md,.json" onChange={(event) => importDocuments(event.target.files)} /><FileUp size={22} /><strong>Subir documentos, atlas o guía del docente</strong><span>PDF, DOCX, XLSX, CSV y texto con contenido seleccionable. Las imágenes se usan en el formato del examen docente.</span></label><div className="study-list">{study.documents.map((document) => <div className={`study-list-item ${study.mainBookId === document.id ? 'selected' : ''}`} key={document.id}><div><strong>{document.name}</strong><small>{document.extractionReady ? `${document.topics.length} tema(s) detectado(s)` : document.issue || 'Pendiente de extracción'}</small></div><button onClick={() => selectMainBook(document.id)}>{study.mainBookId === document.id ? 'Libro principal' : 'Usar como libro'}</button></div>)}</div></article>
         <article className="study-card reader"><div className="card-heading"><Highlighter size={18} /><h2>Lector principal</h2><button className="study-link" onClick={addHighlight}>Subrayar selección</button></div>{mainBook ? <><p className="reader-help">Selecciona una frase y usa “Subrayar selección”. Los resaltados y notas se vinculan al tema activo.</p><div className="reader-text">{sourceSentences(selectedText).slice(0, 80).map((sentence, index) => <p key={`${sentence}-${index}`} className={study.highlights.some((item) => item.excerpt === sentence) ? 'highlighted' : ''}>{sentence}</p>)}</div></> : <div className="empty-state">Carga y designa un libro principal para leerlo aquí.</div>}</article>
       </section>}
 

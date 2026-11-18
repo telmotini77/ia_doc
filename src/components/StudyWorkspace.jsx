@@ -56,6 +56,7 @@ const biologyLevels = [
 const initialStudy = {
   documents: [], mainBookId: '', learningOrder: [], notes: [], highlights: [],
   resources: {}, mistakes: [], atlasStructures: [], examFormat: { description: '', fileName: '' },
+  examSettings: { topicIds: [], questionCount: 10 },
 };
 
 const dateLabel = () => new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium' }).format(new Date());
@@ -112,7 +113,7 @@ async function extractText(file) {
   return (data.text || '').slice(0, 120_000);
 }
 
-function buildResources(topic, text, learningOrder, notes = [], examFormat = {}) {
+function buildResources(topic, text, learningOrder, notes = [], examFormat = {}, questionCount = 4) {
   const sentences = sourceSentences(text);
   const terms = uniqueTerms(text);
   const summarySentences = sentences.slice(0, 5);
@@ -126,6 +127,22 @@ function buildResources(topic, text, learningOrder, notes = [], examFormat = {})
     .filter(Boolean)
     .sort(() => Math.random() - 0.5);
   const matchingPairs = terms.slice(0, 3).map((term, index) => ({ left: term, right: summarySentences[index] || source }));
+  const baseQuiz = [
+    { id: makeId(), type: 'multiple', question: `¿Qué término aparece explícitamente en este extracto? “${evidenceSentence}”`, options, answer: correctTerm, excerpt: evidenceSentence || source, priorTopics, teacherEmphasis, examStyle },
+    { id: makeId(), type: 'blank', question: `Completa según el texto: ${evidenceSentence.replace(new RegExp(`\\b${correctTerm}\\b`, 'i'), '_____') || 'Añade más texto para construir esta pregunta.'}`, answer: correctTerm, excerpt: evidenceSentence || source, priorTopics, teacherEmphasis, examStyle },
+    { id: makeId(), type: 'truefalse', question: summarySentences[1] || 'Añade más texto para construir esta pregunta.', answer: 'verdadero', excerpt: source, priorTopics, teacherEmphasis, examStyle },
+    { id: makeId(), type: 'match', question: 'Relaciona cada concepto con su pista en el texto.', pairs: matchingPairs, matchOptions: matchingPairs.map((pair) => pair.right).sort(() => Math.random() - 0.5), excerpt: source, priorTopics, teacherEmphasis, examStyle },
+  ];
+  const requestedCount = Math.max(4, Math.min(Number(questionCount) || 4, 30));
+  const quiz = Array.from({ length: requestedCount }, (_, index) => {
+    if (index < baseQuiz.length) return baseQuiz[index];
+    const excerpt = sentences[index % Math.max(sentences.length, 1)] || source;
+    const focus = terms[index % Math.max(terms.length, 1)] || correctTerm;
+    const type = ['multiple', 'blank', 'truefalse'][index % 3];
+    if (type === 'multiple') return { id: makeId(), type, question: `Según el texto, ¿cuál de estos términos se relaciona con el extracto: “${excerpt}”?`, options: [...options].sort(() => Math.random() - 0.5), answer: correctTerm, excerpt, priorTopics, teacherEmphasis, examStyle };
+    if (type === 'blank') return { id: makeId(), type, question: `Completa con el término del texto: ${excerpt.replace(new RegExp(`\\b${focus}\\b`, 'i'), '_____')}`, answer: focus, excerpt, priorTopics, teacherEmphasis, examStyle };
+    return { id: makeId(), type, question: excerpt, answer: 'verdadero', excerpt, priorTopics, teacherEmphasis, examStyle };
+  });
   return {
     title: topic.title,
     source,
@@ -137,12 +154,7 @@ function buildResources(topic, text, learningOrder, notes = [], examFormat = {})
     synoptic: terms.slice(0, 6),
     comparison: terms.slice(0, 4).map((term, index) => ({ concepto: term, relación: terms[index + 1] || 'tema central' })),
     flashcards: terms.slice(0, 8).map((term) => ({ front: `Define o explica: ${term}`, back: source || 'Consulta el texto principal.' })),
-    quiz: [
-      { id: makeId(), type: 'multiple', question: `¿Qué término aparece explícitamente en este extracto? “${evidenceSentence}”`, options, answer: correctTerm, excerpt: evidenceSentence || source, priorTopics, teacherEmphasis, examStyle },
-      { id: makeId(), type: 'blank', question: `Completa según el texto: ${evidenceSentence.replace(new RegExp(`\\b${correctTerm}\\b`, 'i'), '_____') || 'Añade más texto para construir esta pregunta.'}`, answer: correctTerm, excerpt: evidenceSentence || source, priorTopics, teacherEmphasis, examStyle },
-      { id: makeId(), type: 'truefalse', question: summarySentences[1] || 'Añade más texto para construir esta pregunta.', answer: 'verdadero', excerpt: source, priorTopics, teacherEmphasis, examStyle },
-      { id: makeId(), type: 'match', question: 'Relaciona cada concepto con su pista en el texto.', pairs: matchingPairs, matchOptions: matchingPairs.map((pair) => pair.right).sort(() => Math.random() - 0.5), excerpt: source, priorTopics, teacherEmphasis, examStyle },
-    ],
+    quiz,
   };
 }
 
@@ -156,6 +168,7 @@ export default function StudyWorkspace({ onReturn }) {
   const [selectedStructure, setSelectedStructure] = useState(anatomyStructures[0]);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizFeedback, setQuizFeedback] = useState({});
+  const [selectedBiologyLevel, setSelectedBiologyLevel] = useState(0);
   const [bioPrompt, setBioPrompt] = useState({ objective: '', variable: '', population: '', design: '' });
   const [jarvisAnswer, setJarvisAnswer] = useState('');
   const [status, setStatus] = useState('');
@@ -166,6 +179,8 @@ export default function StudyWorkspace({ onReturn }) {
   const selectedText = mainBook?.text || '';
   const topicText = useMemo(() => textForTopic(selectedText, selectedTopic?.title || ''), [selectedText, selectedTopic?.title]);
   const atlasStructures = useMemo(() => [...anatomyStructures, ...(study.atlasStructures || [])], [study.atlasStructures]);
+  const examSettings = study.examSettings || initialStudy.examSettings;
+  const selectedExamTopics = useMemo(() => study.learningOrder.filter((topic) => examSettings.topicIds.includes(topic.id)), [study.learningOrder, examSettings.topicIds]);
 
   const updateStudy = (change) => setStudy((previous) => ({ ...previous, ...change }));
 
@@ -221,6 +236,36 @@ export default function StudyWorkspace({ onReturn }) {
     setQuizAnswers({});
     setQuizFeedback({});
     setStatus('Recursos creados únicamente con el texto extraído del libro principal.');
+  };
+
+  const toggleExamTopic = (topicId) => {
+    const topicIds = examSettings.topicIds.includes(topicId)
+      ? examSettings.topicIds.filter((id) => id !== topicId)
+      : [...examSettings.topicIds, topicId];
+    updateStudy({ examSettings: { ...examSettings, topicIds } });
+  };
+
+  const generateExam = () => {
+    if (!selectedText || !mainBook) {
+      setStatus('Carga y designa un libro principal antes de generar el examen.');
+      return;
+    }
+    const topics = selectedExamTopics.length ? selectedExamTopics : (selectedTopic ? [selectedTopic] : []);
+    if (!topics.length) {
+      setStatus('Selecciona al menos un tema del plan para generar la evaluación.');
+      return;
+    }
+    const examTopic = { id: `exam-${makeId()}`, title: `Examen: ${topics.map((topic) => topic.title).join(' · ')}` };
+    const sourceText = topics.map((topic) => textForTopic(selectedText, topic.title)).filter(Boolean).join('\n\n');
+    const linkedNotes = study.notes
+      .filter((note) => topics.some((topic) => topic.id === note.topicId))
+      .map((note) => ({ ...note, topicId: examTopic.id }));
+    const resources = buildResources(examTopic, sourceText, study.learningOrder, linkedNotes, study.examFormat, examSettings.questionCount);
+    updateStudy({ resources });
+    setQuizAnswers({});
+    setQuizFeedback({});
+    setSelectedTopicId(topics[0].id);
+    setStatus(`Examen generado con ${resources.quiz.length} preguntas sobre ${topics.length} tema(s), basado solo en el libro principal.`);
   };
 
   const addTeacherNote = () => {
@@ -300,12 +345,12 @@ export default function StudyWorkspace({ onReturn }) {
 
       {activeTab === 'atlas' && <section className="study-grid two-columns">
         <article className="study-card"><div className="card-heading"><Stethoscope size={18} /><h2>Atlas interactivo de anatomía</h2></div><p className="muted">Toca una estructura para revisar sus datos esenciales. Puedes sumar atlas propios como JSON/texto a tu biblioteca.</p><div className="atlas-chips">{atlasStructures.map((structure) => <button key={structure.id} className={selectedStructure.id === structure.id ? 'active' : ''} onClick={() => setSelectedStructure(structure)}>{structure.name}</button>)}</div><div className="anatomy-card"><span>{selectedStructure.category}</span><h3>{selectedStructure.name}</h3>{selectedStructure.landmarks && <p><strong>Accidentes óseos:</strong> {selectedStructure.landmarks}</p>}<dl><dt>Origen</dt><dd>{selectedStructure.origin}</dd><dt>Inserción</dt><dd>{selectedStructure.insertion}</dd><dt>Inervación</dt><dd>{selectedStructure.innervation}</dd><dt>Función</dt><dd>{selectedStructure.function}</dd></dl></div></article>
-        <article className="study-card"><div className="card-heading"><Layers3 size={18} /><h2>Atlas de biología</h2></div><div className="biology-ladder">{biologyLevels.map(([level, explanation], index) => <button key={level} onClick={() => setStatus(`${level}: ${explanation}`)}><span>{index + 1}</span><div><strong>{level}</strong><p>{explanation}</p></div><ChevronRight size={16} /></button>)}</div></article>
+        <article className="study-card"><div className="card-heading"><Layers3 size={18} /><h2>Atlas de biología</h2></div><p className="muted">Selecciona un nivel para desplegar su ficha de estudio.</p><div className="biology-ladder">{biologyLevels.map(([level, explanation], index) => <button key={level} className={selectedBiologyLevel === index ? 'active' : ''} aria-pressed={selectedBiologyLevel === index} onClick={() => { setSelectedBiologyLevel(index); setStatus(`Nivel seleccionado: ${level}.`); }}><span>{index + 1}</span><div><strong>{level}</strong><p>{explanation}</p></div><ChevronRight size={16} /></button>)}</div><div className="biology-detail" aria-live="polite"><span>NIVEL {selectedBiologyLevel + 1}</span><h3>{biologyLevels[selectedBiologyLevel][0]}</h3><p>{biologyLevels[selectedBiologyLevel][1]}</p><p className="muted">Este nivel se integra con el siguiente para formar estructuras biológicas más complejas.</p></div></article>
       </section>}
 
       {activeTab === 'evaluacion' && <section className="study-grid two-columns">
         <article className="study-card"><div className="card-heading"><GraduationCap size={18} /><h2>Quiz acumulativo</h2></div><p className="muted">Incluye el tema activo y temas previamente completados. Los distractores provienen de términos del mismo material.</p>{study.resources?.examStyle && <p className="quiz-style">Formato docente aplicado: {study.resources.examStyle}</p>}{(study.resources?.quiz || []).map((question) => <div className="quiz-card" key={question.id}><span className="quiz-type">{question.type}</span><h3>{question.question}</h3>{question.type === 'multiple' && question.options.map((option) => <label key={option}><input type="radio" name={question.id} onChange={() => setQuizAnswers({ ...quizAnswers, [question.id]: option })} />{option}</label>)}{question.type === 'blank' && <input placeholder="Escribe la respuesta" onChange={(event) => setQuizAnswers({ ...quizAnswers, [question.id]: event.target.value })} />}{question.type === 'truefalse' && <div className="quiz-options"><button onClick={() => setQuizAnswers({ ...quizAnswers, [question.id]: 'verdadero' })}>Correcto</button><button onClick={() => setQuizAnswers({ ...quizAnswers, [question.id]: 'falso' })}>Incorrecto</button></div>}{question.type === 'match' && <div className="matching-list">{question.pairs.map((pair) => <label key={pair.left}><strong>{pair.left}</strong><select value={quizAnswers[question.id]?.[pair.left] || ''} onChange={(event) => setQuizAnswers((previous) => ({ ...previous, [question.id]: { ...(previous[question.id] || {}), [pair.left]: event.target.value } }))}><option value="">Selecciona la relación</option>{question.matchOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>)}</div>}<button className="study-primary" onClick={() => gradeQuiz(question)}>Comprobar</button>{quizFeedback[question.id] && <div className={quizFeedback[question.id].correct ? 'feedback success' : 'feedback error'}>{quizFeedback[question.id].explanation}{!quizFeedback[question.id].correct && <p>Si necesitas una aplicación clínica, añádela al material: la app no la inventará fuera del texto.</p>}</div>}</div>)}</article>
-        <article className="study-card"><div className="card-heading"><FileUp size={18} /><h2>Formato del examen docente</h2></div><p>Sube una imagen o documento de referencia y registra su estructura para replicarla en prácticas futuras sin usar su contenido como respuesta.</p><input type="file" accept="image/*,.pdf,.docx" onChange={(event) => updateStudy({ examFormat: { ...study.examFormat, fileName: event.target.files[0]?.name || '' } })} /><textarea value={study.examFormat.description} onChange={(event) => updateStudy({ examFormat: { ...study.examFormat, description: event.target.value } })} placeholder="Ej.: 60% opción múltiple, 20% completar, dificultad media, preguntas con casos." />{study.examFormat.fileName && <p className="format-file">Referencia: {study.examFormat.fileName}</p>}<div className="error-review"><h3>Errores para repasar ({study.mistakes.length})</h3>{study.mistakes.map((mistake) => <details key={mistake.id}><summary>{mistake.topic}</summary><p>{mistake.question}</p><small>{mistake.explanation}</small></details>)}</div></article>
+        <article className="study-card"><div className="card-heading"><FileUp size={18} /><h2>Formato del examen docente</h2></div><p>Sube una imagen o documento de referencia y registra su estructura para replicarla en prácticas futuras sin usar su contenido como respuesta.</p><input type="file" accept="image/*,.pdf,.docx" onChange={(event) => updateStudy({ examFormat: { ...study.examFormat, fileName: event.target.files[0]?.name || '' } })} /><textarea value={study.examFormat.description} onChange={(event) => updateStudy({ examFormat: { ...study.examFormat, description: event.target.value } })} placeholder="Ej.: 60% opción múltiple, 20% completar, dificultad media, preguntas con casos." />{study.examFormat.fileName && <p className="format-file">Referencia: {study.examFormat.fileName}</p>}<div className="exam-generator"><div><h3>Generar evaluación</h3><p className="muted">Elige los temas y la cantidad. Las preguntas se crean únicamente con el contenido del libro principal.</p></div><label className="exam-count">Preguntas<input type="number" min="4" max="30" value={examSettings.questionCount} onChange={(event) => updateStudy({ examSettings: { ...examSettings, questionCount: Math.max(4, Math.min(30, Number(event.target.value) || 4)) } })} /></label><div className="exam-topics">{study.learningOrder.length ? study.learningOrder.map((topic) => <label key={topic.id}><input type="checkbox" checked={examSettings.topicIds.includes(topic.id)} onChange={() => toggleExamTopic(topic.id)} />{topic.title}</label>) : <p className="muted">Carga un libro y organiza sus temas en el plan.</p>}</div><button className="study-primary" onClick={generateExam}><GraduationCap size={16} />Generar examen de temas seleccionados</button></div><div className="error-review"><h3>Errores para repasar ({study.mistakes.length})</h3>{study.mistakes.map((mistake) => <details key={mistake.id}><summary>{mistake.topic}</summary><p>{mistake.question}</p><small>{mistake.explanation}</small></details>)}</div></article>
       </section>}
 
       {activeTab === 'bioestadistica' && <section className="study-grid two-columns">

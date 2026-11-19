@@ -14,6 +14,7 @@ const studyApi = (path) => `${API_BASE_URL}${path}`;
 const anatomyStructures = [
   {
     id: 'biceps', category: 'Músculo', name: 'Bíceps braquial',
+    region: 'miembro-superior', system: 'Muscular', description: 'Músculo fusiforme de la cara anterior del brazo, con dos cabezas proximales.',
     origin: 'Cabeza larga: tubérculo supraglenoideo. Cabeza corta: proceso coracoides.',
     insertion: 'Tuberosidad del radio y aponeurosis bicipital.',
     innervation: 'Nervio musculocutáneo (C5–C6).',
@@ -21,6 +22,7 @@ const anatomyStructures = [
   },
   {
     id: 'triceps', category: 'Músculo', name: 'Tríceps braquial',
+    region: 'miembro-superior', system: 'Muscular', description: 'Músculo posterior del brazo formado por cabezas larga, lateral y medial.',
     origin: 'Cabeza larga: tubérculo infraglenoideo; cabezas lateral y medial: cara posterior del húmero.',
     insertion: 'Olécranon de la ulna mediante tendón común.',
     innervation: 'Nervio radial (C6–C8).',
@@ -28,6 +30,7 @@ const anatomyStructures = [
   },
   {
     id: 'femur', category: 'Hueso', name: 'Fémur',
+    region: 'miembro-inferior', system: 'Óseo', description: 'Hueso largo del muslo y el más robusto del cuerpo humano.',
     origin: 'No aplica: estructura ósea.', insertion: 'No aplica: estructura ósea.',
     innervation: 'Periostio y cápsulas articulares reciben sensibilidad de nervios regionales.',
     function: 'Soporta y transmite peso entre pelvis y rodilla; sirve como palanca muscular.',
@@ -35,12 +38,153 @@ const anatomyStructures = [
   },
   {
     id: 'humerus', category: 'Hueso', name: 'Húmero',
+    region: 'miembro-superior', system: 'Óseo', description: 'Hueso largo del brazo entre la cintura escapular y el antebrazo.',
     origin: 'No aplica: estructura ósea.', insertion: 'No aplica: estructura ósea.',
     innervation: 'El nervio radial recorre el surco radial; otros nervios se relacionan con sus epicóndilos.',
     function: 'Conecta hombro y codo y aporta inserciones para músculos del brazo y antebrazo.',
     landmarks: 'Cabeza, tubérculos mayor y menor, surco intertubercular, tuberosidad deltoidea, epicóndilos y tróclea.',
   },
+  {
+    id: 'sternocleidomastoid', category: 'Músculo', name: 'Esternocleidomastoideo',
+    region: 'cabeza-cuello', system: 'Muscular', description: 'Músculo superficial del cuello que delimita los triángulos cervicales anterior y posterior.',
+    origin: 'Manubrio del esternón (cabeza esternal) y tercio medial de la clavícula (cabeza clavicular).',
+    insertion: 'Proceso mastoides del temporal y mitad lateral de la línea nucal superior.',
+    innervation: 'Nervio accesorio (XI) para función motora; ramos cervicales C2–C3 para propiocepción y dolor.',
+    function: 'Unilateralmente rota la cabeza al lado opuesto e inclina al mismo lado; bilateralmente flexiona el cuello y puede elevar el esternón en inspiración forzada.',
+  },
+  {
+    id: 'trapezius', category: 'Músculo', name: 'Trapecio',
+    region: 'tronco-posterior', system: 'Muscular', description: 'Músculo superficial amplio de la nuca y espalda superior, dividido funcionalmente en fibras superiores, medias e inferiores.',
+    origin: 'Protuberancia occipital externa, tercio medial de línea nucal superior, ligamento nucal y apófisis espinosas C7–T12.',
+    insertion: 'Tercio lateral de la clavícula, acromion y espina de la escápula.',
+    innervation: 'Nervio accesorio (XI) motor; ramos anteriores C3–C4 para sensibilidad y propiocepción.',
+    function: 'Eleva, retrae y rota superiormente la escápula; las fibras inferiores contribuyen a su depresión.',
+  },
+  {
+    id: 'diaphragm', category: 'Músculo', name: 'Diafragma',
+    region: 'torax', system: 'Muscular', description: 'Tabique musculotendinoso que separa tórax y abdomen; principal músculo de la inspiración.',
+    origin: 'Porciones esternal, costal y lumbar: proceso xifoides, caras internas de costillas y cartílagos 7–12, y pilares lumbares.',
+    insertion: 'Centro tendinoso del diafragma.',
+    innervation: 'Nervios frénicos C3–C5.',
+    function: 'Al contraerse desciende el centro tendinoso y aumenta el volumen torácico; también aumenta la presión intraabdominal.',
+  },
+  {
+    id: 'rectus-abdominis', category: 'Músculo', name: 'Recto del abdomen',
+    region: 'abdomen-pelvis', system: 'Muscular', description: 'Músculo par vertical de la pared abdominal anterior, segmentado por intersecciones tendinosas.',
+    origin: 'Cresta y sínfisis del pubis.',
+    insertion: 'Proceso xifoides y cartílagos costales de las costillas 5.ª a 7.ª.',
+    innervation: 'Nervios toracoabdominales T6–T11 y nervio subcostal T12.',
+    function: 'Flexiona el tronco, estabiliza y comprime las vísceras abdominales; participa en espiración forzada.',
+  },
+  {
+    id: 'gluteus-maximus', category: 'Músculo', name: 'Glúteo mayor',
+    region: 'miembro-inferior', system: 'Muscular', description: 'Músculo superficial de la región glútea, especialmente potente al levantarse o subir escaleras.',
+    origin: 'Ilion posterior a la línea glútea posterior, dorso de sacro y cóccix, y ligamento sacrotuberoso.',
+    insertion: 'Tracto iliotibial y tuberosidad glútea del fémur.',
+    innervation: 'Nervio glúteo inferior L5–S2.',
+    function: 'Extiende y rota lateralmente el muslo; estabiliza la cadera y la rodilla a través del tracto iliotibial.',
+  },
+  {
+    id: 'quadriceps', category: 'Músculo', name: 'Cuádriceps femoral',
+    region: 'miembro-inferior', system: 'Muscular', description: 'Grupo anterior del muslo formado por recto femoral y vastos lateral, medial e intermedio.',
+    origin: 'Recto femoral: espina ilíaca anteroinferior; vastos: caras anterior y lateral del fémur.',
+    insertion: 'Base de la rótula por tendón cuadricipital y tuberosidad tibial por ligamento patelar.',
+    innervation: 'Nervio femoral L2–L4.',
+    function: 'Extiende la rodilla; el recto femoral también flexiona la cadera.',
+  },
+  {
+    id: 'tibia', category: 'Hueso', name: 'Tibia',
+    region: 'miembro-inferior', system: 'Óseo', description: 'Hueso medial de la pierna que soporta la mayor parte del peso corporal.',
+    origin: 'No aplica: estructura ósea.', insertion: 'No aplica: estructura ósea.',
+    innervation: 'Su periostio recibe sensibilidad de nervios regionales de la pierna.',
+    function: 'Transmite carga entre el fémur y el pie y aporta inserciones musculares y ligamentarias.',
+    landmarks: 'Cóndilos medial y lateral, eminencia intercondílea, tuberosidad tibial, borde anterior, maléolo medial.',
+  },
+  {
+    id: 'sciatic-nerve', category: 'Nervio', name: 'Nervio ciático',
+    region: 'miembro-inferior', system: 'Nervioso', description: 'Nervio periférico de gran calibre que emerge del plexo sacro y recorre la región glútea y posterior del muslo.',
+    origin: 'Ramos anteriores L4–S3 del plexo sacro.', insertion: 'No aplica: nervio periférico.',
+    innervation: 'Conduce fibras motoras y sensitivas; se divide habitualmente en nervios tibial y fibular común.',
+    function: 'Inerva músculos posteriores del muslo y, mediante sus ramas terminales, gran parte de pierna y pie.',
+    landmarks: 'Sale por foramen isquiático mayor, usualmente inferior al piriforme; desciende entre tuberosidad isquiática y trocánter mayor.',
+  },
+  {
+    id: 'brain', category: 'Órgano', name: 'Encéfalo',
+    region: 'cabeza-cuello', system: 'Nervioso', description: 'Conjunto de cerebro, cerebelo y tronco encefálico alojado en la cavidad craneal; integra información sensorial, motora y autónoma.',
+    origin: 'No aplica: órgano del sistema nervioso central.', insertion: 'No aplica: órgano del sistema nervioso central.',
+    innervation: 'No recibe inervación periférica para su función; se comunica con el cuerpo por pares craneales, médula espinal y vías autónomas.',
+    function: 'Coordina cognición, movimiento, sensibilidad, equilibrio, conducta y funciones vitales mediante redes neuronales.',
+    landmarks: 'Hemisferios y lóbulos cerebrales, tálamo, hipotálamo, cerebelo, mesencéfalo, puente y bulbo raquídeo.',
+    relations: 'Está protegido por cráneo, meninges y líquido cefalorraquídeo; continúa inferiormente con la médula espinal a nivel del foramen magno.',
+    clinicalNote: 'Los déficits neurológicos se localizan según el territorio y la vía afectados; esta ficha es de estudio y no sirve para diagnosticar.',
+  },
+  {
+    id: 'heart', category: 'Órgano', name: 'Corazón',
+    region: 'torax', system: 'Cardiovascular', description: 'Órgano muscular hueco situado en el mediastino medio que impulsa sangre hacia la circulación pulmonar y sistémica.',
+    origin: 'No aplica: órgano.', insertion: 'No aplica: órgano.',
+    innervation: 'Plexo cardíaco: fibras simpáticas torácicas y parasimpáticas del nervio vago; el nodo sinoauricular inicia el ritmo normal.',
+    function: 'Mantiene el gasto cardíaco mediante contracción coordinada de aurículas y ventrículos.',
+    landmarks: 'Ápice, base, aurícula derecha e izquierda, ventrículo derecho e izquierdo, surcos coronario e interventriculares.',
+    relations: 'Se apoya sobre el diafragma, está entre ambos pulmones y se encuentra dentro del pericardio.',
+    clinicalNote: 'La irrigación del miocardio depende de arterias coronarias; dolor torácico agudo requiere valoración médica inmediata.',
+  },
+  {
+    id: 'lungs', category: 'Órgano', name: 'Pulmones',
+    region: 'torax', system: 'Respiratorio', description: 'Órganos pares esponjosos de intercambio gaseoso, divididos en lóbulos y recubiertos por pleura visceral.',
+    origin: 'No aplica: órgano.', insertion: 'No aplica: órgano.',
+    innervation: 'Plexos pulmonares con fibras vagales parasimpáticas y simpáticas; el parénquima tiene escasa sensibilidad al dolor.',
+    function: 'Permiten el intercambio de oxígeno y dióxido de carbono entre aire alveolar y sangre capilar.',
+    landmarks: 'Ápice, base, hilio; pulmón derecho con lóbulos superior, medio e inferior; izquierdo con lóbulos superior e inferior y língula.',
+    relations: 'Flanquean el mediastino y descansan sobre el diafragma; cada raíz pulmonar conecta el hilio con el mediastino.',
+    clinicalNote: 'La pleura parietal es sensible y su irritación puede producir dolor que aumenta con la respiración.',
+  },
+  {
+    id: 'liver', category: 'Órgano', name: 'Hígado',
+    region: 'abdomen-pelvis', system: 'Digestivo', description: 'Glándula abdominal grande con funciones metabólicas, de síntesis, detoxificación y producción de bilis.',
+    origin: 'No aplica: órgano.', insertion: 'No aplica: órgano.',
+    innervation: 'Plexo hepático con fibras simpáticas y parasimpáticas; la cápsula hepática puede transmitir dolor por estiramiento.',
+    function: 'Procesa nutrientes, sintetiza proteínas plasmáticas, almacena glucógeno, metaboliza sustancias y produce bilis.',
+    landmarks: 'Lóbulos derecho e izquierdo anatómicos, porta hepatis, vesícula biliar, ligamento falciforme y segmentos vasculobiliares.',
+    relations: 'Predomina en hipocondrio derecho y epigastrio, inferior al diafragma y en contacto con estómago, duodeno, riñón derecho y colon.',
+    clinicalNote: 'La tríada portal reúne conducto biliar, arteria hepática propia y vena porta; es una referencia frecuente en anatomía clínica.',
+  },
+  {
+    id: 'kidney', category: 'Órgano', name: 'Riñón',
+    region: 'abdomen-pelvis', system: 'Urinario', description: 'Órgano retroperitoneal par que filtra plasma, regula equilibrio hidroelectrolítico y produce orina.',
+    origin: 'No aplica: órgano.', insertion: 'No aplica: órgano.',
+    innervation: 'Plexo renal, principalmente fibras simpáticas T10–L1 y aferencias viscerales asociadas.',
+    function: 'Forma orina, contribuye al control de presión arterial y equilibrio ácido-base, y participa en funciones endocrinas.',
+    landmarks: 'Polos superior e inferior, corteza, médula, pirámides, papilas, cálices, pelvis renal e hilio.',
+    relations: 'Son retroperitoneales; el riñón derecho suele estar algo más bajo por el hígado. El hilio se orienta anteromedialmente.',
+    clinicalNote: 'El dolor renal puede irradiarse siguiendo el uréter hacia ingle; su interpretación clínica requiere valoración profesional.',
+  },
+  {
+    id: 'thyroid', category: 'Glándula', name: 'Glándula tiroides',
+    region: 'cabeza-cuello', system: 'Endocrino', description: 'Glándula endocrina cervical anterior formada por dos lóbulos unidos por un istmo, adosada a la tráquea.',
+    origin: 'No aplica: glándula.', insertion: 'No aplica: glándula.',
+    innervation: 'Fibras simpáticas posganglionares de ganglios cervicales regulan sobre todo el tono vascular; la secreción depende de TSH.',
+    function: 'Sintetiza hormonas tiroideas y calcitonina, implicadas en metabolismo y homeostasis del calcio.',
+    landmarks: 'Lóbulos derecho e izquierdo, istmo, polos superior e inferior y posible lóbulo piramidal.',
+    relations: 'Se ubica anterior y lateral a laringe y tráquea; los nervios laríngeos recurrentes se relacionan con su cara posterior.',
+    clinicalNote: 'La relación con el nervio laríngeo recurrente es relevante en cirugía cervical por su función en la voz.',
+  },
+  {
+    id: 'skin', category: 'Órgano', name: 'Piel',
+    region: 'todo', system: 'Tegumentario', description: 'Órgano de cobertura formado por epidermis y dermis, con anexos como folículos, glándulas y uñas.',
+    origin: 'No aplica: órgano de cobertura.', insertion: 'No aplica: órgano de cobertura.',
+    innervation: 'Terminaciones nerviosas libres y receptores especializados conectados con nervios cutáneos regionales.',
+    function: 'Actúa como barrera, participa en sensibilidad, termorregulación, síntesis de vitamina D y defensa inmunitaria.',
+    landmarks: 'Epidermis, dermis papilar y reticular, hipodermis, folículo piloso, glándulas sudoríparas y sebáceas.',
+    relations: 'Recubre todo el cuerpo y se continúa con mucosas en orificios corporales.',
+    clinicalNote: 'El grosor, vascularización y sensibilidad cambian por región corporal; las quemaduras se valoran por profundidad y extensión.',
+  },
 ];
+
+const atlasRegions = [
+  ['todo', 'Cuerpo completo'], ['cabeza-cuello', 'Cabeza y cuello'], ['miembro-superior', 'Miembro superior'],
+  ['torax', 'Tórax'], ['tronco-posterior', 'Espalda y columna'], ['abdomen-pelvis', 'Abdomen y pelvis'], ['miembro-inferior', 'Miembro inferior'],
+];
+const atlasSystems = ['Todos', 'Muscular', 'Óseo', 'Nervioso', 'Cardiovascular', 'Respiratorio', 'Digestivo', 'Urinario', 'Endocrino', 'Tegumentario'];
 
 const biologyLevels = [
   ['Subatómico', 'Protones, neutrones y electrones forman la materia.'],
@@ -93,11 +237,16 @@ function atlasEntriesFromJson(text) {
         id: item.id || `atlas-${makeId()}`,
         category: item.category || 'Estructura anatómica',
         name: item.name,
+        region: item.region || 'personalizado',
+        system: item.system || item.category || 'Personalizado',
+        description: item.description || 'Sin descripción adicional en el atlas cargado.',
         origin: item.origin || 'No especificado en el atlas cargado.',
         insertion: item.insertion || 'No especificado en el atlas cargado.',
         innervation: item.innervation || 'No especificado en el atlas cargado.',
         function: item.function || 'No especificada en el atlas cargado.',
         landmarks: item.landmarks || '',
+        relations: item.relations || '',
+        clinicalNote: item.clinicalNote || '',
       }));
   } catch { return []; }
 }
@@ -169,6 +318,9 @@ export default function StudyWorkspace({ onReturn }) {
   const [selectedTopicId, setSelectedTopicId] = useState('');
   const [teacherNote, setTeacherNote] = useState('');
   const [selectedStructure, setSelectedStructure] = useState(anatomyStructures[0]);
+  const [atlasRegion, setAtlasRegion] = useState('todo');
+  const [atlasSystem, setAtlasSystem] = useState('Todos');
+  const [generatedAtlas, setGeneratedAtlas] = useState(null);
   const [quizAnswers, setQuizAnswers] = useState({});
   const [quizFeedback, setQuizFeedback] = useState({});
   const [isExamModalOpen, setIsExamModalOpen] = useState(false);
@@ -183,10 +335,29 @@ export default function StudyWorkspace({ onReturn }) {
   const selectedText = mainBook?.text || '';
   const topicText = useMemo(() => textForTopic(selectedText, selectedTopic?.title || ''), [selectedText, selectedTopic?.title]);
   const atlasStructures = useMemo(() => [...anatomyStructures, ...(study.atlasStructures || [])], [study.atlasStructures]);
+  const filteredAtlasStructures = useMemo(() => atlasStructures.filter((structure) => (
+    (atlasRegion === 'todo' || structure.region === atlasRegion || structure.region === 'todo')
+    && (atlasSystem === 'Todos' || structure.system === atlasSystem)
+  )), [atlasRegion, atlasStructures, atlasSystem]);
+  const visibleAtlasStructures = generatedAtlas?.structures || filteredAtlasStructures;
   const examSettings = study.examSettings || initialStudy.examSettings;
   const selectedExamTopics = useMemo(() => study.learningOrder.filter((topic) => examSettings.topicIds.includes(topic.id)), [study.learningOrder, examSettings.topicIds]);
 
   const updateStudy = (change) => setStudy((previous) => ({ ...previous, ...change }));
+
+  const generateAtlas = () => {
+    const structures = filteredAtlasStructures;
+    if (!structures.length) {
+      setGeneratedAtlas({ structures: [], label: 'Sin coincidencias' });
+      setStatus('No hay fichas para esa combinación todavía. Importa un atlas JSON con región y sistema para ampliarlo.');
+      return;
+    }
+    const regionName = atlasRegions.find(([id]) => id === atlasRegion)?.[1] || 'Cuerpo completo';
+    const systemName = atlasSystem === 'Todos' ? 'todos los sistemas disponibles' : `sistema ${atlasSystem}`;
+    setGeneratedAtlas({ structures, label: `${regionName} · ${systemName}` });
+    setSelectedStructure(structures[0]);
+    setStatus(`Atlas generado: ${structures.length} estructura(s) para ${regionName}, ${systemName}.`);
+  };
 
   const importDocuments = async (files) => {
     setStatus('Extrayendo contenido de los documentos…');
@@ -355,7 +526,26 @@ export default function StudyWorkspace({ onReturn }) {
       </section>}
 
       {activeTab === 'atlas' && <section className="study-grid two-columns">
-        <article className="study-card"><div className="card-heading"><Stethoscope size={18} /><h2>Atlas interactivo de anatomía</h2></div><p className="muted">Toca una estructura para revisar sus datos esenciales. Puedes sumar atlas propios como JSON/texto a tu biblioteca.</p><div className="atlas-chips">{atlasStructures.map((structure) => <button key={structure.id} className={selectedStructure.id === structure.id ? 'active' : ''} onClick={() => setSelectedStructure(structure)}>{structure.name}</button>)}</div><div className="anatomy-card"><span>{selectedStructure.category}</span><h3>{selectedStructure.name}</h3>{selectedStructure.landmarks && <p><strong>Accidentes óseos:</strong> {selectedStructure.landmarks}</p>}<dl><dt>Origen</dt><dd>{selectedStructure.origin}</dd><dt>Inserción</dt><dd>{selectedStructure.insertion}</dd><dt>Inervación</dt><dd>{selectedStructure.innervation}</dd><dt>Función</dt><dd>{selectedStructure.function}</dd></dl></div></article>
+        <article className="study-card">
+          <div className="card-heading"><Stethoscope size={18} /><h2>Generador de atlas anatómico</h2></div>
+          <p className="muted">Elige una región y sistema. Cada ficha muestra descripción, relaciones, origen, inserción, inervación y función cuando esos campos aplican.</p>
+          <div className="atlas-generator">
+            <label>Región corporal<select value={atlasRegion} onChange={(event) => { setAtlasRegion(event.target.value); setGeneratedAtlas(null); }}>{atlasRegions.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+            <label>Sistema<select value={atlasSystem} onChange={(event) => { setAtlasSystem(event.target.value); setGeneratedAtlas(null); }}>{atlasSystems.map((system) => <option key={system} value={system}>{system}</option>)}</select></label>
+            <button className="study-primary" onClick={generateAtlas}><Sparkles size={16} />Generar atlas detallado</button>
+          </div>
+          <p className="atlas-result" aria-live="polite">{generatedAtlas ? `${generatedAtlas.label}: ${visibleAtlasStructures.length} ficha(s).` : `${filteredAtlasStructures.length} ficha(s) disponibles con los filtros actuales.`}</p>
+          <div className="atlas-chips">{visibleAtlasStructures.map((structure) => <button key={structure.id} className={selectedStructure.id === structure.id ? 'active' : ''} onClick={() => setSelectedStructure(structure)}>{structure.name}</button>)}</div>
+          {selectedStructure && <div className="anatomy-card">
+            <span>{selectedStructure.category} · {selectedStructure.system || 'Sistema no indicado'}</span><h3>{selectedStructure.name}</h3>
+            {selectedStructure.description && <p className="anatomy-description">{selectedStructure.description}</p>}
+            {selectedStructure.landmarks && <p><strong>Referencias anatómicas:</strong> {selectedStructure.landmarks}</p>}
+            {selectedStructure.relations && <p><strong>Relaciones:</strong> {selectedStructure.relations}</p>}
+            <dl><dt>Origen</dt><dd>{selectedStructure.origin}</dd><dt>Inserción</dt><dd>{selectedStructure.insertion}</dd><dt>Inervación</dt><dd>{selectedStructure.innervation}</dd><dt>Función</dt><dd>{selectedStructure.function}</dd></dl>
+            {selectedStructure.clinicalNote && <p className="clinical-note"><strong>Clave clínica:</strong> {selectedStructure.clinicalNote}</p>}
+          </div>}
+          <p className="atlas-sources">Fuentes para ampliar el atlas: <a href="https://openstax.org/subjects/anatomy-and-physiology" target="_blank" rel="noreferrer">OpenStax Anatomy &amp; Physiology</a> · <a href="https://www.nlm.nih.gov/research/visible/index.html" target="_blank" rel="noreferrer">Visible Human Project (NLM)</a> · <a href="https://anatomy.app/help" target="_blank" rel="noreferrer">Anatomy.app</a>.</p>
+        </article>
         <article className="study-card"><div className="card-heading"><Layers3 size={18} /><h2>Atlas de biología</h2></div><p className="muted">Selecciona un nivel para desplegar su ficha de estudio.</p><div className="biology-ladder">{biologyLevels.map(([level, explanation], index) => <button key={level} className={selectedBiologyLevel === index ? 'active' : ''} aria-pressed={selectedBiologyLevel === index} onClick={() => { setSelectedBiologyLevel(index); setStatus(`Nivel seleccionado: ${level}.`); }}><span>{index + 1}</span><div><strong>{level}</strong><p>{explanation}</p></div><ChevronRight size={16} /></button>)}</div><div className="biology-detail" aria-live="polite"><span>NIVEL {selectedBiologyLevel + 1}</span><h3>{biologyLevels[selectedBiologyLevel][0]}</h3><p>{biologyLevels[selectedBiologyLevel][1]}</p><p className="muted">Este nivel se integra con el siguiente para formar estructuras biológicas más complejas.</p></div></article>
       </section>}
 

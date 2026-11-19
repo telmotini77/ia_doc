@@ -1,6 +1,7 @@
 import os
 import re
 import requests
+import asyncio
 from datetime import datetime
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -45,10 +46,15 @@ train_stats_data = {}
 
 @app.on_event("startup")
 async def startup_event():
-    global train_stats_data
     init_auth_database()
+    asyncio.create_task(train_classifier_in_background())
+
+
+async def train_classifier_in_background():
+    """Keep the HTTP service available while the local model is training."""
+    global train_stats_data
     print("[BACKEND] Entrenando la red neuronal en el arranque...")
-    train_stats_data = classifier.train()
+    train_stats_data = await asyncio.to_thread(classifier.train)
     print("[BACKEND] Red neuronal entrenada con éxito.")
 
 def fetch_wikipedia_summary(query: str) -> List[Dict[str, str]]:

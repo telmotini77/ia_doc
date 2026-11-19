@@ -29,11 +29,14 @@ import './App.css';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 const roleLabels = { super_admin: 'Super admin', admin: 'Admin', docente: 'Docente', estudiante: 'Estudiante' };
+const APP_ROUTE = '/app';
+const LANDING_ROUTE = '/';
 
 export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState('documents');
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [route, setRoute] = useState(() => window.location.pathname === APP_ROUTE ? APP_ROUTE : LANDING_ROUTE);
   // State variables
   const [prompt, setPrompt] = useState('');
   const [docType, setDocType] = useState('report'); // 'report', 'presentation', 'spreadsheet', 'petition', 'response'
@@ -117,16 +120,38 @@ export default function App() {
   });
 
   useEffect(() => {
+    const onPopState = () => {
+      if (localStorage.getItem('docgenius_auth_token') && window.location.pathname !== APP_ROUTE) {
+        window.history.replaceState({}, '', APP_ROUTE);
+        setRoute(APP_ROUTE);
+        return;
+      }
+      setRoute(window.location.pathname === APP_ROUTE ? APP_ROUTE : LANDING_ROUTE);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
     const restoreSession = async () => {
       const token = localStorage.getItem('docgenius_auth_token');
-      if (!token) { setAuthLoading(false); return; }
+      if (!token) {
+        if (window.location.pathname === APP_ROUTE) window.history.replaceState({}, '', LANDING_ROUTE);
+        setRoute(LANDING_ROUTE);
+        setAuthLoading(false);
+        return;
+      }
       try {
         const response = await fetch(apiUrl('/api/auth/me'), { headers: { Authorization: `Bearer ${token}` } });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.detail || 'Sesión expirada.');
         setCurrentUser(data.user);
+        if (window.location.pathname !== APP_ROUTE) window.history.replaceState({}, '', APP_ROUTE);
+        setRoute(APP_ROUTE);
       } catch {
         localStorage.removeItem('docgenius_auth_token');
+        if (window.location.pathname === APP_ROUTE) window.history.replaceState({}, '', LANDING_ROUTE);
+        setRoute(LANDING_ROUTE);
       } finally { setAuthLoading(false); }
     };
     restoreSession();
@@ -172,6 +197,8 @@ export default function App() {
   const handleAuthenticated = ({ accessToken, user }) => {
     localStorage.setItem('docgenius_auth_token', accessToken);
     setCurrentUser(user);
+    window.history.pushState({}, '', APP_ROUTE);
+    setRoute(APP_ROUTE);
     setAuthLoading(false);
   };
 
@@ -179,6 +206,8 @@ export default function App() {
     localStorage.removeItem('docgenius_auth_token');
     setCurrentUser(null);
     setWorkspaceMode('documents');
+    window.history.replaceState({}, '', LANDING_ROUTE);
+    setRoute(LANDING_ROUTE);
   };
 
   // Show auto-expiring toast notifications
@@ -487,7 +516,7 @@ export default function App() {
     }
   };
 
-  if (authLoading) return <div className="auth-loading"><Sparkles size={22} />Comprobando tu sesión…</div>;
+  if (authLoading || (currentUser && route !== APP_ROUTE)) return <div className="auth-loading"><Sparkles size={22} />Comprobando tu sesión…</div>;
   if (!currentUser) return <AuthPortal apiBaseUrl={API_BASE_URL} onAuthenticated={handleAuthenticated} />;
 
   const canManageUsers = ['super_admin', 'admin'].includes(currentUser.role);

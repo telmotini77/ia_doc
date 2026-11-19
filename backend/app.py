@@ -2,6 +2,7 @@ import os
 import re
 import requests
 import asyncio
+import secrets
 from datetime import datetime
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -157,6 +158,11 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class BootstrapSuperAdminRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+
+
 class PasswordChangeRequest(BaseModel):
     current_password: str = Field(alias="currentPassword", min_length=1, max_length=128)
     new_password: str = Field(alias="newPassword", min_length=8, max_length=128)
@@ -212,6 +218,35 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o contraseña incorrectos.")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta cuenta está desactivada.")
+    return auth_response(user)
+
+
+@app.post("/api/auth/bootstrap-super-admin")
+def bootstrap_super_admin(req: BootstrapSuperAdminRequest, db: Session = Depends(get_db)):
+    """Recover the configured root account using only the Render-held root secret."""
+    configured_email = (os.getenv("SUPER_ADMIN_EMAIL") or "").strip().lower()
+    configured_password = os.getenv("SUPER_ADMIN_PASSWORD") or ""
+    email = normalized_email(req.email)
+    if not configured_email or not configured_password:
+        raise HTTPException(status_code=503, detail="La cuenta inicial todavía no está configurada en el servidor.")
+    if not secrets.compare_digest(email, configured_email) or not secrets.compare_digest(req.password, configured_password):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Las credenciales de recuperación no coinciden con la configuración del servidor.")
+    user = db.query(User).filter(User.email == configured_email).first()
+    if not user:
+        user = User(
+            name=os.getenv("SUPER_ADMIN_NAME", "Super administrador"),
+            email=configured_email,
+            password_hash=hash_password(configured_password),
+            role="super_admin",
+            is_active=True,
+        )
+        db.add(user)
+    else:
+        user.password_hash = hash_password(configured_password)
+        user.role = "super_admin"
+        user.is_active = True
+    db.commit()
+    db.refresh(user)
     return auth_response(user)
 
 

@@ -2,7 +2,7 @@ import os
 import re
 import requests
 from datetime import datetime
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -10,6 +10,22 @@ from io import BytesIO
 
 from model import PythonClassifier
 from generator import generate_local_content
+from auth import (
+    PUBLIC_REGISTRATION_ROLES,
+    ROLES,
+    User,
+    can_assign_role,
+    create_access_token,
+    get_current_user,
+    get_db,
+    hash_password,
+    init_auth_database,
+    is_last_super_admin,
+    require_roles,
+    user_payload,
+    verify_password,
+)
+from sqlalchemy.orm import Session
 
 app = FastAPI(title="DocuGenius Neural Engine API", version="1.0")
 
@@ -29,6 +45,7 @@ train_stats_data = {}
 @app.on_event("startup")
 async def startup_event():
     global train_stats_data
+    init_auth_database()
     print("[BACKEND] Entrenando la red neuronal en el arranque...")
     train_stats_data = classifier.train()
     print("[BACKEND] Red neuronal entrenada con éxito.")
@@ -121,6 +138,116 @@ class StudyExplainRequest(BaseModel):
     text: str = Field(min_length=1, max_length=120_000)
 
 
+class RegisterRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+    role: str = "estudiante"
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class RoleUpdateRequest(BaseModel):
+    role: str
+
+
+class UserCreateRequest(RegisterRequest):
+    pass
+
+
+def normalized_email(email: str) -> str:
+    email = email.strip().lower()
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise HTTPException(status_code=422, detail="Ingresa un correo electrónico válido.")
+    return email
+
+
+def auth_response(user: User) -> Dict[str, Any]:
+    return {"accessToken": create_access_token(user), "tokenType": "bearer", "user": user_payload(user)}
+
+
+@app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
+def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
+    """Public registration is deliberately limited to learner and teacher roles."""
+    role = req.role.strip().lower()
+    if role not in PUBLIC_REGISTRATION_ROLES:
+        raise HTTPException(status_code=403, detail="Los roles administrativos solo pueden ser asignados por un super administrador.")
+    email = normalized_email(req.email)
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="Ya existe una cuenta con este correo.")
+    user = User(name=req.name.strip(), email=email, password_hash=hash_password(req.password), role=role)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return auth_response(user)
+
+
+@app.post("/api/auth/login")
+def login_user(req: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == normalized_email(req.email)).first()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Correo o contraseña incorrectos.")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta cuenta está desactivada.")
+    return auth_response(user)
+
+
+@app.get("/api/auth/me")
+def current_session(user: User = Depends(get_current_user)):
+    return {"user": user_payload(user)}
+
+
+@app.get("/api/admin/users")
+def list_users(
+    _: User = Depends(require_roles("super_admin", "admin")),
+    db: Session = Depends(get_db),
+):
+    return {"users": [user_payload(user) for user in db.query(User).order_by(User.created_at.desc()).all()]}
+
+
+@app.post("/api/admin/users", status_code=status.HTTP_201_CREATED)
+def create_user(
+    req: UserCreateRequest,
+    actor: User = Depends(require_roles("super_admin", "admin")),
+    db: Session = Depends(get_db),
+):
+    role = req.role.strip().lower()
+    if not can_assign_role(actor, role):
+        raise HTTPException(status_code=403, detail="No puedes crear usuarios con ese rol.")
+    email = normalized_email(req.email)
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=409, detail="Ya existe una cuenta con este correo.")
+    user = User(name=req.name.strip(), email=email, password_hash=hash_password(req.password), role=role)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return {"user": user_payload(user)}
+
+
+@app.patch("/api/admin/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    req: RoleUpdateRequest,
+    actor: User = Depends(require_roles("super_admin", "admin")),
+    db: Session = Depends(get_db),
+):
+    role = req.role.strip().lower()
+    if not can_assign_role(actor, role):
+        raise HTTPException(status_code=403, detail="No puedes asignar ese rol.")
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    if is_last_super_admin(db, user, role):
+        raise HTTPException(status_code=422, detail="Debe permanecer al menos un super administrador activo.")
+    user.role = role
+    db.commit()
+    db.refresh(user)
+    return {"user": user_payload(user)}
+
+
 def explain_study_extract(text: str) -> str:
     """Produce a short, source-grounded explanation without adding facts."""
     normalized = re.sub(r"\s+", " ", text).strip()
@@ -159,7 +286,7 @@ def extract_study_text(filename: str, content: bytes) -> str:
 
 
 @app.post("/api/study/extract")
-async def extract_study_document(file: UploadFile = File(...)):
+async def extract_study_document(file: UploadFile = File(...), _: User = Depends(get_current_user)):
     """Return local extracted text for source-grounded study features."""
     content = await file.read()
     if len(content) > 20 * 1024 * 1024:
@@ -172,7 +299,7 @@ async def extract_study_document(file: UploadFile = File(...)):
 
 
 @app.post("/api/study/explain")
-def explain_study(req: StudyExplainRequest):
+def explain_study(req: StudyExplainRequest, _: User = Depends(get_current_user)):
     """Explain only what is present in the selected study extract."""
     return {"content": explain_study_extract(req.text)}
 

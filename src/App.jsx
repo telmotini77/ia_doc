@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, LogOut, ShieldCheck, Sparkles } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import SettingsModal from './components/SettingsModal';
 import ChatInterface from './components/ChatInterface';
 import DocumentPreview from './components/DocumentPreview';
 import StudyWorkspace from './components/StudyWorkspace';
+import AuthPortal from './components/AuthPortal';
+import AdminPanel from './components/AdminPanel';
 
 import { 
   generateLocalContent, 
@@ -24,8 +26,14 @@ import {
 
 import './App.css';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
+const roleLabels = { super_admin: 'Super admin', admin: 'Admin', docente: 'Docente', estudiante: 'Estudiante' };
+
 export default function App() {
   const [workspaceMode, setWorkspaceMode] = useState('documents');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   // State variables
   const [prompt, setPrompt] = useState('');
   const [docType, setDocType] = useState('report'); // 'report', 'presentation', 'spreadsheet', 'petition', 'response'
@@ -108,8 +116,25 @@ export default function App() {
     formatPreset: 'apa7'
   });
 
-  // Train the Neural Network Classifier on mount
   useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem('docgenius_auth_token');
+      if (!token) { setAuthLoading(false); return; }
+      try {
+        const response = await fetch(apiUrl('/api/auth/me'), { headers: { Authorization: `Bearer ${token}` } });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || 'Sesión expirada.');
+        setCurrentUser(data.user);
+      } catch {
+        localStorage.removeItem('docgenius_auth_token');
+      } finally { setAuthLoading(false); }
+    };
+    restoreSession();
+  }, []);
+
+  // Train the Neural Network Classifier only after a session is available.
+  useEffect(() => {
+    if (!currentUser) return undefined;
     const initAndTrainModel = async () => {
       try {
         const model = new NeuralClassifier();
@@ -141,7 +166,20 @@ export default function App() {
     };
 
     initAndTrainModel();
-  }, []);
+    return undefined;
+  }, [currentUser]);
+
+  const handleAuthenticated = ({ accessToken, user }) => {
+    localStorage.setItem('docgenius_auth_token', accessToken);
+    setCurrentUser(user);
+    setAuthLoading(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('docgenius_auth_token');
+    setCurrentUser(null);
+    setWorkspaceMode('documents');
+  };
 
   // Show auto-expiring toast notifications
   const showToast = (message, type = 'success') => {
@@ -449,6 +487,11 @@ export default function App() {
     }
   };
 
+  if (authLoading) return <div className="auth-loading"><Sparkles size={22} />Comprobando tu sesión…</div>;
+  if (!currentUser) return <AuthPortal apiBaseUrl={API_BASE_URL} onAuthenticated={handleAuthenticated} />;
+
+  const canManageUsers = ['super_admin', 'admin'].includes(currentUser.role);
+
   return (
     <div className="app-container">
       {/* Toast Notification */}
@@ -468,10 +511,13 @@ export default function App() {
       <nav className="app-mode-nav" aria-label="Áreas de DocuGenius">
         <button className={workspaceMode === 'documents' ? 'active' : ''} onClick={() => setWorkspaceMode('documents')}>Generador documental</button>
         <button className={workspaceMode === 'study' ? 'active' : ''} onClick={() => setWorkspaceMode('study')}>Estudio y atlas</button>
+        {canManageUsers && <button className={workspaceMode === 'admin' ? 'active' : ''} onClick={() => setWorkspaceMode('admin')}>Administración</button>}
+        <span className="session-user"><ShieldCheck size={14} /><span>{currentUser.name}</span><small>{roleLabels[currentUser.role]}</small></span>
+        <button className="logout-button" onClick={handleLogout} title="Cerrar sesión"><LogOut size={15} />Salir</button>
       </nav>
 
       {/* Main layout */}
-      {workspaceMode === 'study' ? <StudyWorkspace onReturn={() => setWorkspaceMode('documents')} /> : <div className="main-layout">
+      {workspaceMode === 'study' ? <StudyWorkspace onReturn={() => setWorkspaceMode('documents')} /> : workspaceMode === 'admin' && canManageUsers ? <AdminPanel apiBaseUrl={API_BASE_URL} token={localStorage.getItem('docgenius_auth_token')} currentUser={currentUser} /> : <div className="main-layout">
         <Sidebar
           docType={docType}
           setDocType={setDocType}

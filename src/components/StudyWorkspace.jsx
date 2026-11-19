@@ -10,6 +10,10 @@ import './StudyWorkspace.css';
 const STORAGE_KEY = 'docgenius-study-workspace-v1';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const studyApi = (path) => `${API_BASE_URL}${path}`;
+const authHeader = () => {
+  const token = localStorage.getItem('docgenius_auth_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 const anatomyStructures = [
   {
@@ -256,7 +260,7 @@ async function extractText(file) {
   if (isText) return (await file.text()).slice(0, 120_000);
   const form = new FormData();
   form.append('file', file);
-  const response = await fetch(studyApi('/api/study/extract'), { method: 'POST', body: form });
+  const response = await fetch(studyApi('/api/study/extract'), { method: 'POST', headers: authHeader(), body: form });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.detail || 'No se pudo extraer texto del archivo.');
@@ -482,7 +486,7 @@ export default function StudyWorkspace({ onReturn }) {
     setStatus('Consultando Jarvis Unificado…');
     try {
       const response = await fetch(studyApi('/api/study/explain'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() },
         body: JSON.stringify({ text: study.resources.source }),
       });
       const data = await response.json();

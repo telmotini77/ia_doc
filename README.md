@@ -45,3 +45,23 @@ npm run dev
 ```
 
 Abre `http://localhost:5170`. Para usar Docker: `docker compose up --build`.
+
+## Acceso, usuarios y roles (RBAC)
+
+La aplicación incluye una landing pública, registro e inicio de sesión con tokens firmados. El registro público únicamente permite las cuentas **estudiante** y **docente**. Los roles administrativos se protegen en el backend:
+
+- **super_admin**: consulta usuarios y asigna cualquiera de los cuatro roles.
+- **admin**: consulta usuarios y puede gestionar cuentas de estudiante y docente.
+- **docente** y **estudiante**: acceso al generador documental y al espacio de estudio.
+
+Para desplegar en Render con PostgreSQL, configura estas variables de entorno en el servicio del backend:
+
+```text
+DATABASE_URL=<Internal Database URL de tu PostgreSQL de Render>
+AUTH_SECRET_KEY=<secreto aleatorio de al menos 32 caracteres>
+SUPER_ADMIN_EMAIL=<correo de la primera cuenta administradora>
+SUPER_ADMIN_PASSWORD=<contraseña inicial de al menos 8 caracteres>
+SUPER_ADMIN_NAME=Super administrador
+```
+
+En el siguiente reinicio, la aplicación crea la tabla `users` y la cuenta inicial `super_admin` de forma segura si no existe. No publiques estas variables ni las incluyas en el frontend.

@@ -20,6 +20,7 @@ from auth import (
     get_db,
     hash_password,
     init_auth_database,
+    is_only_active_super_admin,
     is_last_super_admin,
     require_roles,
     user_payload,
@@ -154,6 +155,10 @@ class RoleUpdateRequest(BaseModel):
     role: str
 
 
+class StatusUpdateRequest(BaseModel):
+    is_active: bool = Field(alias="isActive")
+
+
 class UserCreateRequest(RegisterRequest):
     pass
 
@@ -246,6 +251,43 @@ def update_user_role(
     db.commit()
     db.refresh(user)
     return {"user": user_payload(user)}
+
+
+@app.patch("/api/admin/users/{user_id}/status")
+def update_user_status(
+    user_id: int,
+    req: StatusUpdateRequest,
+    actor: User = Depends(require_roles("super_admin")),
+    db: Session = Depends(get_db),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    if user.id == actor.id and not req.is_active:
+        raise HTTPException(status_code=422, detail="No puedes banear tu propia cuenta.")
+    if not req.is_active and is_only_active_super_admin(db, user):
+        raise HTTPException(status_code=422, detail="Debe permanecer al menos un super administrador activo.")
+    user.is_active = req.is_active
+    db.commit()
+    db.refresh(user)
+    return {"user": user_payload(user)}
+
+
+@app.delete("/api/admin/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    actor: User = Depends(require_roles("super_admin")),
+    db: Session = Depends(get_db),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    if user.id == actor.id:
+        raise HTTPException(status_code=422, detail="No puedes eliminar tu propia cuenta.")
+    if is_only_active_super_admin(db, user):
+        raise HTTPException(status_code=422, detail="No puedes eliminar al último super administrador activo.")
+    db.delete(user)
+    db.commit()
 
 
 def explain_study_extract(text: str) -> str:

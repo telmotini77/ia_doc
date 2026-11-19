@@ -3,7 +3,7 @@
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Generator, Iterable
+from typing import Generator
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -145,3 +145,7 @@ def can_assign_role(actor: User, role: str) -> bool:
 
 def is_last_super_admin(db: Session, user: User, new_role: str) -> bool:
     return user.role == "super_admin" and new_role != "super_admin" and db.query(User).filter(User.role == "super_admin", User.is_active.is_(True)).count() <= 1
+
+
+def is_only_active_super_admin(db: Session, user: User) -> bool:
+    return user.role == "super_admin" and db.query(User).filter(User.role == "super_admin", User.is_active.is_(True)).count() <= 1

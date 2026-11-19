@@ -7,6 +7,7 @@ import DocumentPreview from './components/DocumentPreview';
 import StudyWorkspace from './components/StudyWorkspace';
 import AuthPortal from './components/AuthPortal';
 import AdminPanel from './components/AdminPanel';
+import AccountPanel from './components/AccountPanel';
 
 import { 
   generateLocalContent, 
@@ -541,12 +542,13 @@ export default function App() {
         <button className={workspaceMode === 'documents' ? 'active' : ''} onClick={() => setWorkspaceMode('documents')}>Generador documental</button>
         <button className={workspaceMode === 'study' ? 'active' : ''} onClick={() => setWorkspaceMode('study')}>Estudio y atlas</button>
         {canManageUsers && <button className={workspaceMode === 'admin' ? 'active' : ''} onClick={() => setWorkspaceMode('admin')}>Administración</button>}
+        <button className={workspaceMode === 'account' ? 'active' : ''} onClick={() => setWorkspaceMode('account')}>Mi cuenta</button>
         <span className="session-user"><ShieldCheck size={14} /><span>{currentUser.name}</span><small>{roleLabels[currentUser.role]}</small></span>
         <button className="logout-button" onClick={handleLogout} title="Cerrar sesión"><LogOut size={15} />Salir</button>
       </nav>
 
       {/* Main layout */}
-      {workspaceMode === 'study' ? <StudyWorkspace onReturn={() => setWorkspaceMode('documents')} /> : workspaceMode === 'admin' && canManageUsers ? <AdminPanel apiBaseUrl={API_BASE_URL} token={localStorage.getItem('docgenius_auth_token')} currentUser={currentUser} /> : <div className="main-layout">
+      {workspaceMode === 'study' ? <StudyWorkspace onReturn={() => setWorkspaceMode('documents')} /> : workspaceMode === 'admin' && canManageUsers ? <AdminPanel apiBaseUrl={API_BASE_URL} token={localStorage.getItem('docgenius_auth_token')} currentUser={currentUser} /> : workspaceMode === 'account' ? <AccountPanel apiBaseUrl={API_BASE_URL} token={localStorage.getItem('docgenius_auth_token')} currentUser={currentUser} /> : <div className="main-layout">
         <Sidebar
           docType={docType}
           setDocType={setDocType}

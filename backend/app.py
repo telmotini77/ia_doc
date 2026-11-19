@@ -151,6 +151,15 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(alias="currentPassword", min_length=1, max_length=128)
+    new_password: str = Field(alias="newPassword", min_length=8, max_length=128)
+
+
+class PasswordResetRequest(BaseModel):
+    new_password: str = Field(alias="newPassword", min_length=8, max_length=128)
+
+
 class RoleUpdateRequest(BaseModel):
     role: str
 
@@ -203,6 +212,20 @@ def login_user(req: LoginRequest, db: Session = Depends(get_db)):
 @app.get("/api/auth/me")
 def current_session(user: User = Depends(get_current_user)):
     return {"user": user_payload(user)}
+
+
+@app.post("/api/auth/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_own_password(
+    req: PasswordChangeRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not verify_password(req.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="La contraseña actual no es correcta.")
+    if verify_password(req.new_password, user.password_hash):
+        raise HTTPException(status_code=422, detail="La nueva contraseña debe ser diferente de la actual.")
+    user.password_hash = hash_password(req.new_password)
+    db.commit()
 
 
 @app.get("/api/admin/users")
@@ -287,6 +310,20 @@ def delete_user(
     if is_only_active_super_admin(db, user):
         raise HTTPException(status_code=422, detail="No puedes eliminar al último super administrador activo.")
     db.delete(user)
+    db.commit()
+
+
+@app.post("/api/admin/users/{user_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_user_password(
+    user_id: int,
+    req: PasswordResetRequest,
+    _: User = Depends(require_roles("super_admin")),
+    db: Session = Depends(get_db),
+):
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    user.password_hash = hash_password(req.new_password)
     db.commit()
 
 
